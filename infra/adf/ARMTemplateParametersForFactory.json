@@ -1,0 +1,45 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "value": "adfpranprac"
+        },
+        "AzureSqlDatabase1_password": {
+            "value": ""
+        },
+        "AzureDataLakeStorage1_accountKey": {
+            "value": ""
+        },
+        "AzureDatabricks1_accessToken": {
+            "value": ""
+        },
+        "LSfrominsightsqldb_password": {
+            "value": ""
+        },
+        "AzureSqlDatabase1_properties_typeProperties_server": {
+            "value": "testserver768.database.windows.net"
+        },
+        "AzureSqlDatabase1_properties_typeProperties_database": {
+            "value": "ecommerceproj1"
+        },
+        "AzureSqlDatabase1_properties_typeProperties_userName": {
+            "value": "proserver"
+        },
+        "AzureDataLakeStorage1_properties_typeProperties_url": {
+            "value": "https://pracstorageacc.dfs.core.windows.net/"
+        },
+        "AzureDatabricks1_properties_typeProperties_existingClusterId": {
+            "value": "0623-140504-fcgqvtej"
+        },
+        "LSfrominsightsqldb_properties_typeProperties_server": {
+            "value": "testserver768.database.windows.net"
+        },
+        "LSfrominsightsqldb_properties_typeProperties_database": {
+            "value": "ecommerceproj1"
+        },
+        "LSfrominsightsqldb_properties_typeProperties_userName": {
+            "value": "proserver"
+        }
+    }
+}

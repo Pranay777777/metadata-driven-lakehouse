@@ -97,4 +97,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Smoke test the image
-        run: docker run --rm app:ci python -c "import app; print(app.__name__, 'ok')"
+        run: docker run --rm app:ci python -c "import lakehouse; print(lakehouse.__name__, 'ok')"

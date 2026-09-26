@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.config import Settings, get_settings
+from lakehouse.config import Settings, get_settings
 
 
 def test_settings_defaults(settings: Settings) -> None:

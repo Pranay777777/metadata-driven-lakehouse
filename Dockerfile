@@ -27,6 +27,6 @@ COPY --chown=appuser:appuser src ./src
 USER appuser
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD python -c "import app" || exit 1
+  CMD python -c "import lakehouse" || exit 1
 
-CMD ["python", "-m", "app"]
+CMD ["python", "-m", "lakehouse"]

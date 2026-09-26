@@ -7,11 +7,11 @@ REPO="${1:?usage: use-template.sh <repo-name> <package_name> <description>}"
 PKG="${2:?missing package name}"
 DESC="${3:?missing description}"
 
-if [ "$PKG" != "app" ]; then
+if [ "$PKG" != "lakehouse" ]; then
   git mv src/app "src/$PKG"
-  grep -rl --exclude-dir=.git -e 'app\.' -e '"app"' -e "'app'" -e 'module app' . 2>/dev/null \
+  grep -rl --exclude-dir=.git -e 'app\.' -e '"lakehouse"' -e "'lakehouse'" -e 'module app' . 2>/dev/null \
     | while read -r f; do
-        sed -i "s/\bapp\./$PKG./g; s/\"app\"/\"$PKG\"/g; s/'app'/'$PKG'/g" "$f"
+        sed -i "s/\bapp\./$PKG./g; s/\"app\"/\"$PKG\"/g; s/'lakehouse'/'$PKG'/g" "$f"
       done
   sed -i "s/^name = \"app\"/name = \"$PKG\"/" pyproject.toml
   sed -i "s/python -m app/python -m $PKG/g" Makefile Dockerfile "src/$PKG/__main__.py"

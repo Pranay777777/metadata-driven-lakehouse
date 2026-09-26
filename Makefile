@@ -34,10 +34,10 @@ security:  ## Secret scan over full history plus dependency audit
 	pip-audit --strict
 
 seed:  ## Load sample data (implement per project)
-	python -m app.seed
+	python -m lakehouse.seed
 
 eval:  ## Run the evaluation harness (AI projects only)
-	python -m app.eval
+	python -m lakehouse.eval
 
 clean:  ## Remove caches and build artefacts
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov .coverage coverage.xml dist build

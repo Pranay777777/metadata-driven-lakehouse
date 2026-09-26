@@ -1,25 +1,27 @@
 [project]
-name = "app"
+name = "lakehouse"
 version = "0.1.0"
 description = "PROJECT_DESCRIPTION"
 requires-python = ">=3.11"
 dependencies = [
-  "pydantic>=2.13.5",
-  "pydantic-settings>=2.2",
+  "pydantic>=2.13",
+  "pydantic-settings>=2.15",
+  "SQLAlchemy>=2.0.36",
+  "alembic>=1.14",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=9.1.1",
-  "pytest-cov>=7.1.0",
-  "ruff>=0.16.8",
-  "mypy>=2.3.1",
-  "pre-commit>=4.6.2",
-  "pip-audit>=2.10.1",
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "pre-commit>=3.7",
+  "pip-audit>=2.7",
 ]
 
 [build-system]
-requires = ["setuptools>=84.0.0"]
+requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

@@ -4,12 +4,12 @@ Order matters: a reviewer reads top to bottom for about thirty seconds,
 so the demo and the value proposition sit above the fold.
 -->
 
-# PROJECT_NAME
+# metadata-driven-lakehouse
 
 > ONE_LINE_VALUE_PROP — what it does and who it is for, in under twenty words.
 > Example: "Config-driven lakehouse ingestion — onboard a new source with one SQL row, not a new pipeline."
 
-[![CI](https://github.com/Pranay777777/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/Pranay777777/REPO/actions/workflows/ci.yml)
+[![CI](https://github.com/Pranay777777/metadata-driven-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Pranay777777/metadata-driven-lakehouse/actions/workflows/ci.yml)
 ![Coverage](https://img.shields.io/badge/coverage-XX%25-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -46,7 +46,7 @@ One paragraph walking through the flow, naming the non-obvious parts.
 Five commands or fewer, from nothing to running:
 
 ```bash
-git clone https://github.com/Pranay777777/REPO.git && cd REPO
+git clone https://github.com/Pranay777777/metadata-driven-lakehouse.git && cd REPO
 cp .env.example .env
 make install
 make up

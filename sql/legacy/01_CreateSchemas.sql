@@ -1,0 +1,5 @@
+CREATE SCHEMA Metadata;
+GO
+
+CREATE SCHEMA Logging;
+GO

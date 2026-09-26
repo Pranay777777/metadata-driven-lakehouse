@@ -1,11 +1,11 @@
-"""Entry point: python -m app"""
+"""Entry point: python -m lakehouse"""
 
 from __future__ import annotations
 
 import logging
 
-from app.config import get_settings
-from app.logging import configure_logging
+from lakehouse.config import get_settings
+from lakehouse.logging import configure_logging
 
 
 def main() -> None:

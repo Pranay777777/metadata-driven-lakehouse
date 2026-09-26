@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 
-from app.logging import JsonFormatter
+from lakehouse.logging import JsonFormatter
 
 
 def test_formatter_emits_valid_json() -> None:
