@@ -70,3 +70,6 @@ chroma/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Generated synthetic data
+data/generated/

@@ -8,6 +8,8 @@ dependencies = [
   "pydantic-settings>=2.15",
   "SQLAlchemy>=2.0.36",
   "alembic>=1.14",
+  "numpy>=2.1",
+  "pyarrow>=18.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +47,10 @@ strict = true
 warn_unreachable = true
 show_error_codes = true
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["pyarrow.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

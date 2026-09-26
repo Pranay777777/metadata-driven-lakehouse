@@ -33,8 +33,8 @@ security:  ## Secret scan over full history plus dependency audit
 	gitleaks detect --config .gitleaks.toml --redact --no-banner
 	pip-audit --strict
 
-seed:  ## Load sample data (implement per project)
-	python -m lakehouse.seed
+seed:  ## Generate synthetic source data (ROWS=5000000 make seed)
+	python -m lakehouse.seed --rows $${ROWS:-1000000}
 
 eval:  ## Run the evaluation harness (AI projects only)
 	python -m lakehouse.eval
