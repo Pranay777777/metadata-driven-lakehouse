@@ -39,6 +39,8 @@ CREATE TABLE source_object (
 	load_strategy VARCHAR(20) NOT NULL, 
 	incremental_column VARCHAR(100) NULL, 
 	primary_key_columns VARCHAR(400) NULL, 
+	cdc_operation_column VARCHAR(100) NULL, 
+	cdc_delete_value VARCHAR(20) NOT NULL, 
 	load_order INTEGER NOT NULL, 
 	active BIT NOT NULL, 
 	scd2_enabled BIT NOT NULL, 

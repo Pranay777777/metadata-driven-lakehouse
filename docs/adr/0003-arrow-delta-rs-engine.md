@@ -58,3 +58,17 @@ some `MERGE` and Z-ordering behaviour — which may constrain steps 20 and
 
 **Revisit when:** a required Delta feature turns out to be missing from
 delta-rs, or the dataset outgrows single-node memory.
+
+## Update, 2026-09-26 (step 20)
+
+The `MERGE` concern above did not materialise. delta-rs implements
+`when_matched_update`, `when_matched_delete` and `when_not_matched_insert`
+with predicates, executes them in one atomic commit, and returns
+row-level metrics (`num_target_rows_inserted`, `updated`, `deleted`),
+which the CDC loader records straight into `task_run`. Insert, update
+and delete applied in a single batch are covered by tests.
+
+One operational note: the delta-rs process emits `terminate called
+without an active exception` on interpreter exit in some scripts. It is
+teardown noise after the commit has been written, not a failed merge,
+and it has not appeared under pytest.

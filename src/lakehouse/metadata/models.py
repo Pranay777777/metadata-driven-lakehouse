@@ -124,6 +124,14 @@ class SourceObject(TimestampMixin, Base):
     primary_key_columns: Mapped[str | None] = mapped_column(String(400))
     """Comma-separated. Required for CDC merges and SCD2 in Silver."""
 
+    cdc_operation_column: Mapped[str | None] = mapped_column(String(100))
+    """Column in the change feed holding the operation code. Null means the
+    feed carries only upserts and never signals a delete."""
+
+    cdc_delete_value: Mapped[str] = mapped_column(String(20), default="D", nullable=False)
+    """Value of `cdc_operation_column` that means "this row was deleted".
+    Feeds disagree — 'D', 'delete', '3' — so it is configuration."""
+
     load_order: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
