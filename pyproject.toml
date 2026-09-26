@@ -8,7 +8,7 @@ dependencies = [
   "pydantic-settings>=2.15",
   "SQLAlchemy>=2.0.36",
   "alembic>=1.14",
-  "numpy>=2.1",
+  "numpy>=1.26",
   "pyarrow>=18.0",
   "deltalake>=0.25",
 ]
