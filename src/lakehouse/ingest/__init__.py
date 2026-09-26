@@ -17,6 +17,7 @@ from lakehouse.ingest.incremental import (
     current_watermark,
     load_incremental,
 )
+from lakehouse.ingest.runner import ObjectOutcome, RunSummary, run_pipeline
 
 __all__ = [
     "FilteringSource",
@@ -24,7 +25,9 @@ __all__ = [
     "IncrementalSource",
     "LoadResult",
     "MergeResult",
+    "ObjectOutcome",
     "ParquetSource",
+    "RunSummary",
     "Source",
     "collapse_changes",
     "current_watermark",
@@ -33,5 +36,6 @@ __all__ = [
     "load_full",
     "load_incremental",
     "read_bronze",
+    "run_pipeline",
     "start_pipeline_run",
 ]
