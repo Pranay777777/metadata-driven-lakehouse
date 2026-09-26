@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Final
 
 import numpy as np
+import numpy.typing as npt
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -124,7 +125,7 @@ def _ids(prefix: str, count: int) -> pa.Array:
 
 
 def _mask_nulls(
-    values: list[str] | np.ndarray, rng: np.random.Generator, rate: float
+    values: list[str] | npt.NDArray[np.str_], rng: np.random.Generator, rate: float
 ) -> list[str | None]:
     """Blank out `rate` of the values, so nullability is exercised."""
     out: list[str | None] = [str(v) for v in values]
@@ -136,7 +137,7 @@ def _mask_nulls(
 
 def _timestamps(
     rng: np.random.Generator, count: int, cfg: SeedConfig
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]:
     """Return (event_time, updated_at) in epoch seconds.
 
     `updated_at` normally trails the event slightly. For `late_rate` of
