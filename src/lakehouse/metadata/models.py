@@ -132,6 +132,11 @@ class SourceObject(TimestampMixin, Base):
     """Value of `cdc_operation_column` that means "this row was deleted".
     Feeds disagree — 'D', 'delete', '3' — so it is configuration."""
 
+    watermark_grace: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    """How far below the stored watermark to re-read, so late-arriving rows
+    are not missed. Expressed in the watermark's own units: seconds for a
+    timestamp watermark, raw units for an integer key. Zero disables it."""
+
     load_order: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

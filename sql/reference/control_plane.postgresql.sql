@@ -41,6 +41,7 @@ CREATE TABLE source_object (
 	primary_key_columns VARCHAR(400), 
 	cdc_operation_column VARCHAR(100), 
 	cdc_delete_value VARCHAR(20) NOT NULL, 
+	watermark_grace INTEGER NOT NULL, 
 	load_order INTEGER NOT NULL, 
 	active BOOLEAN NOT NULL, 
 	scd2_enabled BOOLEAN NOT NULL, 

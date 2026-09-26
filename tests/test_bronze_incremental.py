@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from lakehouse.ingest.bronze import read_bronze, start_pipeline_run
 from lakehouse.ingest.incremental import (
     FilteringSource,
+    apply_grace,
     current_watermark,
     decode_watermark,
     encode_watermark,
@@ -173,11 +174,11 @@ def test_retry_after_failure_loses_nothing(
 
 
 def test_late_arriving_rows_are_missed(session: Session, obj: SourceObject, tmp_path: Path) -> None:
-    """Documents a known gap rather than hiding it.
+    """Baseline with grace disabled.
 
     A strict `>` comparison cannot see a row that appears later with an
-    older timestamp. Step 22 adds a grace window; until then this test
-    pins the current behaviour so the fix is provable.
+    older timestamp. This pins that behaviour; the tests below prove
+    `watermark_grace` fixes it.
     """
     run1 = start_pipeline_run(session, "bronze")
     load_incremental(session, run1, obj, _source(_rows([1, 2], [10, 40])), tmp_path)
@@ -247,3 +248,108 @@ def test_watermark_type_is_inferred_from_the_column() -> None:
 def test_filter_since_with_no_watermark_returns_everything() -> None:
     table = _rows([1, 2], [10, 20])
     assert filter_since(table, "updated_at", None).num_rows == 2
+
+
+# ---------------------------------------------------------------------------
+# Grace window (step 22)
+# ---------------------------------------------------------------------------
+
+
+def test_grace_window_catches_late_arrivals(
+    session: Session, obj: SourceObject, tmp_path: Path
+) -> None:
+    """The inverse of the test above: with grace, the late row lands."""
+    obj.watermark_grace = 20
+    session.commit()
+
+    run1 = start_pipeline_run(session, "bronze")
+    load_incremental(session, run1, obj, _source(_rows([1, 2], [10, 40])), tmp_path)
+
+    # Row 3 has timestamp 25 — below the watermark (40) but inside grace (20).
+    run2 = start_pipeline_run(session, "bronze")
+    result = load_incremental(session, run2, obj, _source(_rows([1, 2, 3], [10, 40, 25])), tmp_path)
+
+    ids = read_bronze(tmp_path, obj).column("order_id").to_pylist()
+    assert 3 in ids
+    assert result.rows_written >= 1
+
+
+def test_grace_window_is_bounded(session: Session, obj: SourceObject, tmp_path: Path) -> None:
+    """A row older than the grace window is still missed — by design."""
+    obj.watermark_grace = 5
+    session.commit()
+
+    run1 = start_pipeline_run(session, "bronze")
+    load_incremental(session, run1, obj, _source(_rows([1], [100])), tmp_path)
+
+    run2 = start_pipeline_run(session, "bronze")
+    result = load_incremental(session, run2, obj, _source(_rows([1, 2], [100, 50])), tmp_path)
+
+    # Row 2 (seq 50) is far below the window start (100 - 5 = 95), so it is
+    # still missed. Row 1 (seq 100) sits inside the window and is re-read.
+    assert 2 not in read_bronze(tmp_path, obj).column("order_id").to_pylist()
+    assert result.rows_reprocessed == 1
+
+
+def test_grace_reports_reprocessed_rows(
+    session: Session, obj: SourceObject, tmp_path: Path
+) -> None:
+    """The cost of grace must be visible, not hidden."""
+    obj.watermark_grace = 50
+    session.commit()
+
+    run1 = start_pipeline_run(session, "bronze")
+    load_incremental(session, run1, obj, _source(_rows([1, 2, 3], [10, 20, 30])), tmp_path)
+
+    run2 = start_pipeline_run(session, "bronze")
+    result = load_incremental(session, run2, obj, _source(_rows([1, 2, 3], [10, 20, 30])), tmp_path)
+
+    assert result.rows_reprocessed == 3
+    assert result.rows_written == 3
+
+
+def test_grace_does_not_move_the_watermark_backwards(
+    session: Session, obj: SourceObject, tmp_path: Path
+) -> None:
+    """A batch of only old rows must not rewind progress.
+
+    Without this guard the watermark would ratchet down every run and the
+    grace window would widen without limit.
+    """
+    obj.watermark_grace = 100
+    session.commit()
+
+    run1 = start_pipeline_run(session, "bronze")
+    load_incremental(session, run1, obj, _source(_rows([1, 2], [10, 90])), tmp_path)
+    assert (wm := current_watermark(session, obj)) is not None
+    assert wm.watermark_value == "90"
+
+    run2 = start_pipeline_run(session, "bronze")
+    load_incremental(session, run2, obj, _source(_rows([1], [10])), tmp_path)
+
+    assert (wm2 := current_watermark(session, obj)) is not None
+    assert wm2.watermark_value == "90"
+
+
+def test_grace_defaults_to_disabled(session: Session, obj: SourceObject) -> None:
+    assert obj.watermark_grace == 0
+
+
+def test_apply_grace_arithmetic() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    assert apply_grace(100, WatermarkType.INTEGER, 30) == 70
+    assert apply_grace(100, WatermarkType.INTEGER, 0) == 100
+    assert apply_grace(None, WatermarkType.INTEGER, 30) is None
+
+    now = datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    assert apply_grace(now, WatermarkType.TIMESTAMP, 3600) == now - timedelta(hours=1)
+
+
+def test_apply_grace_ignored_for_string_watermarks(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """String watermarks have no arithmetic; say so rather than guess."""
+    with caplog.at_level("WARNING"):
+        assert apply_grace("abc", WatermarkType.STRING, 10) == "abc"
+    assert "grace ignored" in caplog.text

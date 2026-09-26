@@ -7,18 +7,21 @@ costs a few duplicate rows, which Silver deduplicates. The opposite
 ordering — advancing first — loses rows permanently, and nobody notices
 until someone reconciles a total months later.
 
-Known limitation, addressed in step 22: a row that arrives with an
-`updated_at` *below* the current watermark is never seen. That is what
-late-arriving data looks like, and the fix is a grace window rather than
-a strict `>` comparison. There is a test below asserting the gap exists,
-so it cannot be forgotten.
+Late-arriving rows — ones that appear with an `updated_at` *below* the
+current watermark — are invisible to a strict `>` comparison. The fix is
+`watermark_grace`: read from `watermark - grace` instead of `watermark`.
+That re-reads rows already loaded, which is the deliberate trade. Bronze
+is append-only, so the duplicates land there and Silver removes them;
+`rows_reprocessed` on the result makes the cost visible rather than
+hidden.
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Protocol
 
@@ -30,6 +33,8 @@ from sqlalchemy.orm import Session
 from lakehouse.ingest.bronze import Source, add_provenance
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus, WatermarkType
 from lakehouse.metadata.models import LoadWatermark, PipelineRun, SourceObject, TaskRun
+
+logger = logging.getLogger(__name__)
 
 
 class IncrementalSource(Protocol):
@@ -57,6 +62,9 @@ class IncrementalResult:
     watermark_to: str | None
     delta_version: int
     duration_seconds: float
+    rows_reprocessed: int = 0
+    """Rows re-read because of the grace window. Duplicates in Bronze that
+    Silver will collapse — the price of not missing late arrivals."""
 
     @property
     def advanced(self) -> bool:
@@ -87,6 +95,23 @@ def decode_watermark(text: str, wtype: WatermarkType) -> object:
     if wtype is WatermarkType.TIMESTAMP:
         return datetime.fromisoformat(text)
     return text
+
+
+def apply_grace(since: object | None, wtype: WatermarkType | None, grace: int) -> object | None:
+    """Move a watermark backwards by the configured grace.
+
+    Grace is expressed in the watermark's own units: seconds for a
+    timestamp, raw units for an integer key. String watermarks have no
+    arithmetic, so grace cannot apply and is ignored.
+    """
+    if since is None or grace <= 0 or wtype is None:
+        return since
+    if wtype is WatermarkType.INTEGER and isinstance(since, int):
+        return since - grace
+    if wtype is WatermarkType.TIMESTAMP and isinstance(since, datetime):
+        return since - timedelta(seconds=grace)
+    logger.warning("watermark_grace ignored for %s watermarks", wtype)
+    return since
 
 
 def filter_since(table: pa.Table, column: str, since: object | None) -> pa.Table:
@@ -147,6 +172,7 @@ def load_incremental(
     from_text = stored.watermark_value if stored else None
     wtype = WatermarkType(stored.watermark_type) if stored else None
     since = decode_watermark(from_text, wtype) if (from_text and wtype) else None
+    effective_since = apply_grace(since, wtype, obj.watermark_grace)
 
     task = TaskRun(
         run_id=run.run_id,
@@ -159,7 +185,7 @@ def load_incremental(
     session.commit()
 
     try:
-        table = source.read_since(obj, since)
+        table = source.read_since(obj, effective_since)
         if table.num_rows and column not in table.column_names:
             raise KeyError(
                 f"incremental column '{column}' not present in source "
@@ -180,12 +206,20 @@ def load_incremental(
         # Watermark deliberately untouched: the next run retries this window.
         raise
 
+    reprocessed = 0
+    if table.num_rows and since is not None and effective_since is not since:
+        reprocessed = table.num_rows - filter_since(table, column, since).num_rows
+
     to_text = from_text
     if table.num_rows:
         col = table.column(column)
         new_type = wtype or infer_watermark_type(col)
-        to_text = encode_watermark(pc.max(col).as_py(), new_type)
-        _advance(session, obj, to_text, new_type, run.run_id)
+        candidate = encode_watermark(pc.max(col).as_py(), new_type)
+        # With grace enabled the batch can be entirely old rows, whose max
+        # sits below the stored watermark. Never move it backwards.
+        if since is None or decode_watermark(candidate, new_type) > since:  # type: ignore[operator]
+            to_text = candidate
+            _advance(session, obj, to_text, new_type, run.run_id)
 
     elapsed = time.perf_counter() - started
     task.status = RunStatus.SUCCEEDED
@@ -205,6 +239,7 @@ def load_incremental(
         watermark_to=to_text,
         delta_version=version,
         duration_seconds=elapsed,
+        rows_reprocessed=reprocessed,
     )
 
 
