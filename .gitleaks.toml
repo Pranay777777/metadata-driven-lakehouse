@@ -1,0 +1,26 @@
+# Gitleaks config for this template.
+# Extends the default ruleset, then removes the false-positive classes that
+# repeatedly fire on documentation copies and tabular data.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Saved third-party API documentation — example auth headers, not our credentials"
+paths = [
+  '''(^|/)(docs?|research|notes)/.*\.(md|txt|html)$''',
+]
+regexTarget = "match"
+regexes = [
+  '''(?i)(your|example|sample|placeholder|xxx+|<[^>]+>)''',
+]
+
+[[allowlists]]
+description = "Datasets: high-entropy strings in CSV/JSONL rows are data, not secrets"
+paths = [
+  '''(^|/)data/.*\.(csv|tsv|jsonl|parquet)$''',
+]
+
+[[allowlists]]
+description = "Committed example env files"
+paths = ['''(^|/)\.env\.example$''']
