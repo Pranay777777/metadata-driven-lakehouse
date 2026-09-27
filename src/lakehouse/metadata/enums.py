@@ -85,6 +85,20 @@ class RuleType(StrEnum):
     CUSTOM_SQL = "custom_sql"
 
 
+class GoldRole(StrEnum):
+    """How an object is published into the Gold star schema.
+
+    An object with no role is not published at all. Most Bronze objects
+    are staging or reference data that no analyst should query.
+    """
+
+    FACT = "fact"
+    """Measurements at a grain. Carries surrogate keys, not natural ones."""
+
+    DIMENSION = "dimension"
+    """Descriptive context, keyed by a surrogate so history can be joined."""
+
+
 class Sensitivity(StrEnum):
     """PII classification, used to drive masking in Silver."""
 

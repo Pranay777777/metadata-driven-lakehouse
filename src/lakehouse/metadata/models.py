@@ -107,6 +107,14 @@ class SourceObject(TimestampMixin, Base):
             "load_strategy <> 'cdc' OR primary_key_columns IS NOT NULL",
             name="ck_cdc_needs_primary_key",
         ),
+        CheckConstraint(
+            "gold_role IS NULL OR gold_role IN ('fact', 'dimension')",
+            name="ck_gold_role",
+        ),
+        CheckConstraint(
+            "gold_role <> 'dimension' OR primary_key_columns IS NOT NULL",
+            name="ck_dimension_needs_primary_key",
+        ),
         Index("ix_source_object_active_order", "active", "load_order"),
     )
 
@@ -143,6 +151,10 @@ class SourceObject(TimestampMixin, Base):
     scd2_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     """Track history in Silver with valid_from / valid_to / is_current."""
 
+    gold_role: Mapped[str | None] = mapped_column(String(20))
+    """Published to Gold as a fact or a dimension. NULL means not published —
+    most objects are staging or reference data no analyst should query."""
+
     freshness_sla_minutes: Mapped[int | None] = mapped_column(Integer)
     """Alert if the newest row is older than this. NULL disables the check."""
 
@@ -159,6 +171,33 @@ class SourceObject(TimestampMixin, Base):
     watermark: Mapped[LoadWatermark | None] = relationship(
         back_populates="source_object", uselist=False, passive_deletes=True
     )
+
+
+class GoldReference(TimestampMixin, Base):
+    """One edge of the star: a fact column that points at a dimension.
+
+    This is what keeps the Gold builder generic. Without it, resolving
+    `customer_id` to `dim_customer` would have to be hardcoded, and the
+    premise that nothing in the pipeline knows what `orders` is would
+    stop being true at exactly the layer analysts look at.
+    """
+
+    __tablename__ = "gold_reference"
+    __table_args__ = (
+        UniqueConstraint("fact_object_id", "fact_column", name="uq_gold_reference"),
+        CheckConstraint("fact_object_id <> dimension_object_id", name="ck_no_self_reference"),
+        Index("ix_gold_reference_fact", "fact_object_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fact_object_id: Mapped[int] = mapped_column(
+        ForeignKey("source_object.id", ondelete="CASCADE"), nullable=False
+    )
+    dimension_object_id: Mapped[int] = mapped_column(
+        ForeignKey("source_object.id", ondelete="CASCADE"), nullable=False
+    )
+    fact_column: Mapped[str] = mapped_column(String(200), nullable=False)
+    """Natural-key column on the fact, replaced by the dimension's surrogate."""
 
 
 class ColumnMetadata(TimestampMixin, Base):

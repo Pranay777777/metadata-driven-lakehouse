@@ -45,6 +45,7 @@ CREATE TABLE source_object (
 	load_order INTEGER NOT NULL, 
 	active BIT NOT NULL, 
 	scd2_enabled BIT NOT NULL, 
+	gold_role VARCHAR(20) NULL, 
 	freshness_sla_minutes INTEGER NULL, 
 	owner VARCHAR(200) NULL, 
 	created_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
@@ -54,6 +55,8 @@ CREATE TABLE source_object (
 	CONSTRAINT ck_load_strategy CHECK (load_strategy IN ('full', 'incremental', 'cdc')), 
 	CONSTRAINT ck_incremental_needs_column CHECK (load_strategy <> 'incremental' OR incremental_column IS NOT NULL), 
 	CONSTRAINT ck_cdc_needs_primary_key CHECK (load_strategy <> 'cdc' OR primary_key_columns IS NOT NULL), 
+	CONSTRAINT ck_gold_role CHECK (gold_role IS NULL OR gold_role IN ('fact', 'dimension')), 
+	CONSTRAINT ck_dimension_needs_primary_key CHECK (gold_role <> 'dimension' OR primary_key_columns IS NOT NULL), 
 	FOREIGN KEY(source_system_id) REFERENCES source_system (id) ON DELETE CASCADE
 );
 
@@ -90,6 +93,22 @@ CREATE TABLE dq_rule (
 );
 
 CREATE INDEX ix_dq_rule_object ON dq_rule (source_object_id, active);
+
+CREATE TABLE gold_reference (
+	id INTEGER NOT NULL IDENTITY, 
+	fact_object_id INTEGER NOT NULL, 
+	dimension_object_id INTEGER NOT NULL, 
+	fact_column VARCHAR(200) NOT NULL, 
+	created_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+	updated_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_gold_reference UNIQUE (fact_object_id, fact_column), 
+	CONSTRAINT ck_no_self_reference CHECK (fact_object_id <> dimension_object_id), 
+	FOREIGN KEY(fact_object_id) REFERENCES source_object (id) ON DELETE CASCADE, 
+	FOREIGN KEY(dimension_object_id) REFERENCES source_object (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_gold_reference_fact ON gold_reference (fact_object_id);
 
 CREATE TABLE load_watermark (
 	source_object_id INTEGER NOT NULL, 
