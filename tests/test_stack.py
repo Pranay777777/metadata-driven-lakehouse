@@ -153,6 +153,12 @@ def test_lineage_is_off_by_default(settings: Settings) -> None:
     assert settings.openlineage_enabled is False
 
 
+def test_the_database_url_names_its_driver(settings: Settings) -> None:
+    """A bare postgresql:// lets SQLAlchemy choose between psycopg2 and
+    psycopg 3, and the choice has changed between versions."""
+    assert settings.database_url.startswith("postgresql+psycopg://")
+
+
 def test_stack_defaults_match_the_compose_file(settings: Settings) -> None:
     assert settings.openlineage_url.endswith(":5000")
     assert settings.marquez_web_url.endswith(":3000")

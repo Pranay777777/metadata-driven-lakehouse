@@ -19,7 +19,11 @@ class Settings(BaseSettings):
 
     app_env: Literal["local", "ci", "staging", "prod"] = "local"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    database_url: str = "postgresql://app:app@localhost:5432/app"
+    database_url: str = "postgresql+psycopg://app:app@localhost:5432/app"
+    """The driver is named explicitly. A bare `postgresql://` leaves
+    SQLAlchemy to pick between psycopg2 and psycopg 3, and which one it
+    picks has changed between versions — an ambiguity that surfaces as
+    ModuleNotFoundError on a machine that has the other one."""
 
     lake_root: str = "./lake"
     """Where Delta tables are written. A local path today; see ADR-011."""

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs stack test lint format typecheck security seed eval clean
+.PHONY: help install up down logs stack test lint format typecheck security seed register run demo eval clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -42,6 +42,17 @@ security:  ## Secret scan over full history plus dependency audit
 
 seed:  ## Generate synthetic source data (ROWS=5000000 make seed)
 	python -m lakehouse.seed --rows $${ROWS:-1000000}
+
+register:  ## Write the demo catalog into the control plane
+	python -m lakehouse.pipeline --register
+
+run:  ## Run bronze -> silver -> gold over the seeded data
+	python -m lakehouse.pipeline
+
+demo:  ## Seed, register and run the whole platform end to end
+	@$(MAKE) --no-print-directory seed
+	@$(MAKE) --no-print-directory register
+	@$(MAKE) --no-print-directory run
 
 eval:  ## Run the evaluation harness (AI projects only)
 	python -m lakehouse.eval

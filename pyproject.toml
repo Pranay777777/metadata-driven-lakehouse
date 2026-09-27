@@ -7,11 +7,13 @@ dependencies = [
   "pydantic>=2.13",
   "pydantic-settings>=2.15",
   "SQLAlchemy>=2.0.36",
+  "psycopg[binary]>=3.2",
   "alembic>=1.14",
   "numpy>=1.26",
   "pyarrow>=18.0",
   "deltalake>=0.25",
   "PyYAML>=6.0",
+  "openlineage-python>=1.30",
 ]
 
 [project.optional-dependencies]
