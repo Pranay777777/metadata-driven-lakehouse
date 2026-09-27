@@ -39,8 +39,10 @@ from lakehouse.tables import (
     latest_per_key,
     rename_snake_case,
     require_columns,
+    to_snake_case,
     trim_strings,
 )
+from lakehouse.transform.scd2 import Scd2Outcome, apply_scd2, represents_current_state
 
 TIMESTAMP_SUFFIXES = ("_at", "_date", "_time")
 
@@ -55,9 +57,17 @@ class SilverResult:
     rows_written: int
     delta_version: int
     duration_seconds: float
+    scd2: Scd2Outcome | None = None
+    """Version bookkeeping, present only when the object tracks history."""
 
     @property
     def duplicates_removed(self) -> int:
+        """Rows the dedupe collapsed.
+
+        Meaningful on the snapshot path, where `rows_written` is the
+        whole batch. Under SCD2 `rows_written` counts new *versions*, so
+        read `scd2` instead.
+        """
         return self.rows_read - self.rows_written
 
 
@@ -139,7 +149,24 @@ def build_silver(
 
         target = lake_root / silver_path(obj)
         target.parent.mkdir(parents=True, exist_ok=True)
-        write_deltalake(str(target), conformed, mode="overwrite", schema_mode="overwrite")
+
+        if obj.scd2_enabled:
+            outcome = apply_scd2(
+                target,
+                conformed,
+                [to_snake_case(k) for k in keys],
+                to_snake_case(sequence),
+                datetime.now(UTC),
+                allow_deletes=represents_current_state(obj.load_strategy),
+            )
+            written = outcome.rows_written
+            rejected = (bronze.num_rows - conformed.num_rows) + outcome.late_skipped
+        else:
+            write_deltalake(str(target), conformed, mode="overwrite", schema_mode="overwrite")
+            outcome = None
+            written = conformed.num_rows
+            rejected = bronze.num_rows - conformed.num_rows
+
         version = DeltaTable(str(target)).version()
     except Exception as exc:
         task.status = RunStatus.FAILED
@@ -151,8 +178,8 @@ def build_silver(
     elapsed = time.perf_counter() - started
     task.status = RunStatus.SUCCEEDED
     task.rows_read = bronze.num_rows
-    task.rows_written = conformed.num_rows
-    task.rows_rejected = bronze.num_rows - conformed.num_rows
+    task.rows_written = written
+    task.rows_rejected = rejected
     task.ended_at = datetime.now(UTC)
     task.duration_seconds = int(elapsed)
     session.commit()
@@ -161,9 +188,10 @@ def build_silver(
         run_id=run.run_id,
         object_name=obj.object_name,
         rows_read=bronze.num_rows,
-        rows_written=conformed.num_rows,
+        rows_written=written,
         delta_version=version,
         duration_seconds=elapsed,
+        scd2=outcome,
     )
 
 
