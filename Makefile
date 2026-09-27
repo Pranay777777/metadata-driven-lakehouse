@@ -37,7 +37,7 @@ typecheck:  ## Run mypy in strict mode
 	mypy
 
 security:  ## Secret scan over full history plus dependency audit
-	gitleaks detect --config .gitleaks.toml --redact --no-banner
+	gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts="--all" .
 	pip-audit --strict
 
 seed:  ## Generate synthetic source data (ROWS=5000000 make seed)

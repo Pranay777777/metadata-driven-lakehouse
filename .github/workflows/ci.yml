@@ -72,7 +72,7 @@ jobs:
           curl -sSL -o gitleaks.tar.gz \
             "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
           tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks detect --config .gitleaks.toml --redact --no-banner --exit-code 1
+          ./gitleaks git --config .gitleaks.toml --redact --no-banner --exit-code 1 --log-opts="--all" .
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
