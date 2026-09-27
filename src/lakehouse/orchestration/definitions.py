@@ -178,9 +178,7 @@ def build_gold_asset(entry: CatalogEntry) -> AssetsDefinition:
 
 
 def _object(session: Session, name: str) -> SourceObject:
-    obj = session.scalars(
-        select(SourceObject).where(SourceObject.object_name == name)
-    ).first()
+    obj = session.scalars(select(SourceObject).where(SourceObject.object_name == name)).first()
     if obj is None:
         raise ValueError(
             f"'{name}' is not registered — run 'python -m lakehouse.pipeline --register'"
