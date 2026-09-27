@@ -1,27 +1,99 @@
-services:
-  app:
-    build: .
-    env_file: [.env]
-    environment:
-      APP_ENV: local
-    ports: ["8000:8000"]
-    depends_on:
-      db:
-        condition: service_healthy
+# Local development stack.
+#
+#   make up      start everything and wait for it to be healthy
+#   make down    stop it and delete the volumes
+#   make stack   check every service is actually answering
+#
+# Nothing here is production configuration. Credentials are fixed and
+# public on purpose: this stack is disposable, and a developer should
+# never have to find a secret to run the tests.
+#
+# There is deliberately no object storage here. MinIO removed
+# minio/minio and minio/mc from Docker Hub in September 2026 and the
+# mirror situation is still unsettled; since the lake currently writes
+# to local disk (ADR-011), the bucket had no consumer. Object storage
+# is chosen and wired at step 33, when something actually reads it.
 
+name: lakehouse
+
+services:
+  # Control plane for the platform, and Marquez's own storage.
+  #
+  # Postgres 14 rather than 16 because that is what Marquez is tested
+  # against upstream, and because its default grants on the public
+  # schema are the ones Marquez's migrations expect.
   db:
-    image: postgres:16-alpine
+    image: postgres:14-alpine
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
     ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
+
+  # Lineage server. SEARCH_ENABLED must be false: it defaults to true
+  # and Marquez then tries to reach an OpenSearch host that this stack
+  # does not run.
+  marquez:
+    image: marquezproject/marquez:0.50.0
+    environment:
+      MARQUEZ_PORT: 5000
+      MARQUEZ_ADMIN_PORT: 5001
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      SEARCH_ENABLED: "false"
+    ports:
+      - "5000:5000"   # OpenLineage ingest + REST API
+      - "5001:5001"   # admin, used by the healthcheck
+    depends_on:
+      db:
+        condition: service_healthy
+    # No entrypoint override. The image already sets
+    # ENTRYPOINT ["/usr/src/app/entrypoint.sh"], and the wait-for-it.sh
+    # that upstream's compose calls is bind-mounted from their repo
+    # rather than baked into the image. The depends_on condition above
+    # does the waiting instead.
+    #
+    # The probe opens a TCP connection with bash, not wget or curl: the
+    # image is eclipse-temurin and installs only postgresql-client, bash
+    # and coreutils, so neither HTTP client is present. Dropwizard binds
+    # the admin port once startup and migrations have finished.
+    #
+    # CMD rather than CMD-SHELL, and bash named explicitly: CMD-SHELL
+    # runs /bin/sh, which is dash on Ubuntu, and /dev/tcp is a bash
+    # builtin that dash does not have.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/5001"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  # The lineage graph. This is what gets screenshotted for the README.
+  marquez-web:
+    image: marquezproject/marquez-web:0.50.0
+    environment:
+      # MARQUEZ_HOST/PORT tell the UI where to proxy API calls.
+      # WEB_PORT is the port the UI itself listens on — without it the
+      # app starts and logs "listening on port undefined", so the
+      # container looks healthy while refusing every connection.
+      MARQUEZ_HOST: marquez
+      MARQUEZ_PORT: 5000
+      WEB_PORT: 3000
+      # Matches SEARCH_ENABLED on the API. Left on, the UI offers a
+      # search box backed by an OpenSearch this stack does not run.
+      REACT_APP_ADVANCED_SEARCH: "false"
+    ports: ["3000:3000"]
+    depends_on:
+      marquez:
+        condition: service_healthy
 
 volumes:
   pgdata:

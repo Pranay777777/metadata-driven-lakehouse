@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install up down test lint format typecheck security seed eval clean
+.PHONY: help install up down logs stack test lint format typecheck security seed eval clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -9,11 +9,18 @@ install:  ## Install the package with dev extras and git hooks
 	pip install -e ".[dev]"
 	pre-commit install
 
-up:  ## Start the local stack
-	docker compose up --build -d
+up:  ## Start the local stack and wait for it to answer
+	docker compose up -d --wait
+	@$(MAKE) --no-print-directory stack
 
-down:  ## Stop the local stack
+down:  ## Stop the local stack and delete its volumes
 	docker compose down -v
+
+logs:  ## Follow logs (SERVICE=marquez make logs for one service)
+	docker compose logs -f $${SERVICE:-}
+
+stack:  ## Check every service is actually answering
+	python -m lakehouse.stack
 
 test:  ## Run the test suite with coverage
 	pytest
