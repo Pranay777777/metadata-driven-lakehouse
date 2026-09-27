@@ -51,12 +51,18 @@ than by what this code actually needed.
 
 `order_items`, 2,030,000 rows, 7 columns, Linux x86_64, Python 3.12:
 
-| engine | seconds | rows/sec |
-|---|---:|---:|
-| arrow | 3.13 | 647,850 |
-| spark | 29.00 | 69,995 |
+| machine | arrow s | spark s | ratio |
+|---|---:|---:|---:|
+| Linux x86_64 container | 3.26 | 28.49 | 8.7x |
+| Windows AMD64 laptop, Java 17 | 4.37 | 17.58 | **4.0x** |
 
-**Arrow is 9.3x faster at this size**, and both produce identical rows.
+**Arrow wins on both**, and both engines produce identical rows on both.
+
+The gap is half as wide on the Windows machine. Spark's cost is mostly
+fixed — JVM startup, serialisation to executors — and a machine with
+more cores for `local[*]` amortises it faster. Which is the whole
+argument in miniature: the answer to "Arrow or Spark?" depends on the
+hardware and the volume, so it is a measurement, not a preference.
 
 That number is the point, not an embarrassment. Spark's overhead here
 is JVM startup and Arrow serialisation to the executors, both largely
