@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     s3_secret_access_key: str = ""
     """Empty by default. Step 37 resolves real credentials by name."""
 
+    masking_key: str = ""
+    """Key for the HMAC that masks classified columns. Empty means the
+    built-in development key, which is published in this repository and
+    therefore offers no protection at all — `lakehouse.privacy` warns
+    when it is in use. Step 37 resolves the real key by secret name; the
+    control plane never holds the value (design rule 6)."""
+
     openlineage_url: str = "http://localhost:5000"
     openlineage_namespace: str = "lakehouse"
     openlineage_enabled: bool = False

@@ -46,6 +46,7 @@ from sqlalchemy.orm import Session
 from lakehouse.lineage import Recording, default_lineage, lake_dataset, renamed_lineage
 from lakehouse.metadata.enums import GoldRole, Layer, RunStatus
 from lakehouse.metadata.models import GoldReference, PipelineRun, SourceObject, TaskRun
+from lakehouse.privacy import drop_restricted, load_policies
 from lakehouse.tables import require_columns, to_snake_case
 from lakehouse.transform.scd2 import IS_CURRENT, IS_DELETED, VALID_FROM
 from lakehouse.transform.silver import read_silver
@@ -72,6 +73,10 @@ class GoldResult:
     duration_seconds: float
     unresolved: dict[str, int] | None = None
     """Per fact column, how many rows fell back to the unknown member."""
+
+    restricted: tuple[str, ...] = ()
+    """Columns withheld from Gold because they are `sensitive_pii` and
+    nobody has allow-listed them."""
 
     @property
     def unresolved_total(self) -> int:
@@ -161,6 +166,12 @@ def build_dimension(
         keys = natural_keys(obj)
         require_columns(silver, keys, f"silver table for '{obj.object_name}'")
 
+        # The most sensitive columns do not reach the layer analysts
+        # query unless somebody said so explicitly. Natural keys survive:
+        # a dimension without its business key is not a dimension, and
+        # masking already covered the value itself (ADR-017).
+        silver, restricted = drop_restricted(silver, load_policies(session, obj), keep=keys)
+
         keyed = silver.append_column(
             surrogate_column(obj),
             dimension_keys(silver, keys, versioned=obj.scd2_enabled),
@@ -207,6 +218,7 @@ def build_dimension(
             rows_written=published.num_rows,
             delta_version=version,
             duration_seconds=0.0,
+            restricted=restricted,
         ),
     )
 
@@ -298,6 +310,8 @@ def build_fact(
                 surrogate_column(dimension), pa.array(resolved, type=pa.int64())
             )
 
+        table, restricted = drop_restricted(table, load_policies(session, obj))
+
         target = lake_root / gold_path(obj)
         target.parent.mkdir(parents=True, exist_ok=True)
         write_deltalake(str(target), table, mode="overwrite", schema_mode="overwrite")
@@ -326,6 +340,7 @@ def build_fact(
             delta_version=version,
             duration_seconds=0.0,
             unresolved=unresolved,
+            restricted=restricted,
         ),
     )
 
@@ -404,4 +419,5 @@ def _finish(session: Session, task: TaskRun, started: float, result: GoldResult)
         delta_version=result.delta_version,
         duration_seconds=elapsed,
         unresolved=result.unresolved,
+        restricted=result.restricted,
     )

@@ -42,6 +42,7 @@ from lakehouse.lineage import (
 )
 from lakehouse.metadata.enums import Layer, RunStatus
 from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
+from lakehouse.privacy import load_policies, mask, masking_key
 from lakehouse.quality import QualityOutcome, evaluate, write_quarantine
 from lakehouse.tables import (
     epoch_to_timestamp,
@@ -70,6 +71,9 @@ class SilverResult:
 
     quality: QualityOutcome | None = None
     """Rule results for this build. Quarantined rows are in `quality.rejected`."""
+
+    masked_columns: tuple[str, ...] = ()
+    """Columns a classification in `column_metadata` masked on the way in."""
 
     @property
     def duplicates_removed(self) -> int:
@@ -170,10 +174,19 @@ def build_silver(
         # first layer that owes any guarantee about its contents.
         quality = evaluate(session, task, obj, conformed)
         _dropped = bronze.num_rows - deduped.num_rows
+
+        # Masking runs after the rules and before every write. Rules need
+        # real values to be worth anything; quarantine is still a table
+        # someone can read, so it gets masked too (ADR-017).
+        policies = load_policies(session, obj)
+        key = masking_key()
+        kept, masked_columns = mask(quality.kept, policies, key)
+        rejected, _ = mask(quality.rejected, policies, key)
+
         # Diverted rows are written before the layer itself, so a crash
         # between the two loses the load rather than the evidence.
-        write_quarantine(lake_root, obj, quality.rejected, run.run_id, task.id, Layer.SILVER)
-        conformed = quality.kept
+        write_quarantine(lake_root, obj, rejected, run.run_id, task.id, Layer.SILVER)
+        conformed = kept
 
         target = lake_root / silver_path(obj)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -238,6 +251,7 @@ def build_silver(
         duration_seconds=elapsed,
         scd2=outcome,
         quality=quality,
+        masked_columns=masked_columns,
     )
 
 

@@ -111,6 +111,32 @@ class Sensitivity(StrEnum):
     """Hashed, and excluded from Gold unless explicitly allow-listed."""
 
 
+class MaskingStrategy(StrEnum):
+    """What Silver does to a classified column's values.
+
+    Which strategy a column gets is configuration, not code: the same
+    masking runs for every source, and reclassifying a column is an
+    UPDATE against `column_metadata`.
+    """
+
+    NONE = "none"
+    """Leave the value alone. Correct for `internal` columns, which are
+    quasi-identifiers worth labelling but not worth destroying."""
+
+    HASH = "hash"
+    """Replace with a keyed HMAC of the value. Equal inputs produce equal
+    outputs, so masked columns still join and still deduplicate — the
+    property that makes masking survivable in a warehouse."""
+
+    REDACT = "redact"
+    """Replace with null. The only strategy that works on any type, and
+    the only one that removes the value outright."""
+
+    PARTIAL = "partial"
+    """Keep the last four characters, mask the rest. Enough to recognise
+    a record in a support conversation, not enough to identify a person."""
+
+
 class SourceKind(StrEnum):
     """Transport used to reach a source system."""
 

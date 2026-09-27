@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs stack test lint format typecheck security seed register run demo dagster bench optimize vacuum replay eval clean
+.PHONY: help install up down logs stack test lint format typecheck security seed classify register run demo dagster bench optimize vacuum replay eval clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -42,6 +42,9 @@ security:  ## Secret scan over full history plus dependency audit
 
 seed:  ## Generate synthetic source data (ROWS=5000000 make seed)
 	python -m lakehouse.seed --rows $${ROWS:-1000000}
+
+classify:  ## Propose PII classifications for every registered object
+	python -m lakehouse.privacy
 
 register:  ## Write the demo catalog into the control plane
 	python -m lakehouse.pipeline --register

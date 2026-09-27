@@ -46,6 +46,36 @@ _CITIES: Final = [
     "manaus",
 ]
 _STATES: Final = ["SP", "RJ", "MG", "DF", "PR", "RS", "BA", "CE", "PE", "AM"]
+# Names exist so the PII classifier and the masking policy have something
+# real to act on. A warehouse with no personal data in it cannot
+# demonstrate what it does about personal data (ADR-017).
+_FIRST_NAMES: Final = [
+    "ana",
+    "bruno",
+    "carla",
+    "diego",
+    "elena",
+    "felipe",
+    "gabriela",
+    "henrique",
+    "isabela",
+    "joao",
+]
+_LAST_NAMES: Final = [
+    "silva",
+    "santos",
+    "oliveira",
+    "souza",
+    "costa",
+    "pereira",
+    "almeida",
+    "ferreira",
+    "rodrigues",
+    "lima",
+]
+_EMAIL_DOMAINS: Final = ["example.com", "example.net", "example.org"]
+_PII_STREAM: Final = 1
+"""Sub-stream id for personal fields, kept apart from the main sequence."""
 _CATEGORIES: Final = [
     "bed_bath_table",
     "health_beauty",
@@ -172,12 +202,61 @@ def _apply_duplicates(table: pa.Table, rng: np.random.Generator, rate: float) ->
 
 
 def build_customers(cfg: SeedConfig, rng: np.random.Generator) -> pa.Table:
-    """Customer dimension."""
+    """Customer dimension — the only table carrying personal data.
+
+    Names, emails, phone numbers and a CPF-shaped document number are
+    synthetic and drawn from `example.com` reserved domains, but they are
+    shaped like the real thing, which is what the classifier in
+    `lakehouse.privacy` needs in order to recognise them. The phone is
+    nullable so masking has to prove it leaves nulls alone.
+
+    Personal fields come from their own random stream. Drawing them from
+    `rng` would shift every table generated after this one, so the same
+    seed would stop reproducing the same orders — and a lake loaded
+    incrementally from the old output would mix the two.
+    """
     n = cfg.n_customers
     _, updated = _timestamps(rng, n, cfg)
+    pii = np.random.default_rng([cfg.seed, _PII_STREAM])
+    first = pii.integers(0, len(_FIRST_NAMES), n)
+    last = pii.integers(0, len(_LAST_NAMES), n)
+    domain = pii.integers(0, len(_EMAIL_DOMAINS), n)
+    area = pii.integers(11, 100, n)
+    line = pii.integers(0, 100_000_000, n)
+    document = pii.integers(0, 1_000_000_000_00, n)
     return pa.table(
         {
             "customer_id": _ids("cust", n),
+            "customer_name": pa.array(
+                [
+                    f"{_FIRST_NAMES[f]} {_LAST_NAMES[left]}"
+                    for f, left in zip(first, last, strict=True)
+                ],
+                type=pa.string(),
+            ),
+            "customer_email": pa.array(
+                [
+                    f"{_FIRST_NAMES[f]}.{_LAST_NAMES[left]}{i}@{_EMAIL_DOMAINS[d]}"
+                    for i, (f, left, d) in enumerate(zip(first, last, domain, strict=True))
+                ],
+                type=pa.string(),
+            ),
+            "customer_phone": pa.array(
+                _mask_nulls(
+                    [f"+55 {a:02d} 9{line_:08d}" for a, line_ in zip(area, line, strict=True)],
+                    pii,
+                    cfg.null_rate,
+                ),
+                type=pa.string(),
+            ),
+            "customer_document": pa.array(
+                [
+                    f"{d // 100_000_000:03d}.{d // 100_000 % 1000:03d}"
+                    f".{d // 100 % 1000:03d}-{d % 100:02d}"
+                    for d in document
+                ],
+                type=pa.string(),
+            ),
             "customer_city": pa.array(
                 _mask_nulls(rng.choice(_CITIES, n), rng, cfg.null_rate), type=pa.string()
             ),

@@ -67,14 +67,20 @@ CREATE TABLE column_metadata (
 	source_object_id INTEGER NOT NULL, 
 	column_name VARCHAR(200) NOT NULL, 
 	sensitivity VARCHAR(20) NOT NULL, 
+	masking_strategy VARCHAR(20) NOT NULL, 
+	allow_in_gold BIT NOT NULL, 
 	business_description TEXT NULL, 
 	created_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	updated_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	PRIMARY KEY (id), 
 	CONSTRAINT uq_column_metadata UNIQUE (source_object_id, column_name), 
 	CONSTRAINT ck_sensitivity CHECK (sensitivity IN ('none', 'internal', 'pii', 'sensitive_pii')), 
+	CONSTRAINT ck_masking_strategy CHECK (masking_strategy IN ('none', 'hash', 'redact', 'partial')), 
+	CONSTRAINT ck_unclassified_is_unmasked CHECK (sensitivity <> 'none' OR masking_strategy = 'none'), 
 	FOREIGN KEY(source_object_id) REFERENCES source_object (id) ON DELETE CASCADE
 );
+
+CREATE INDEX ix_column_metadata_object ON column_metadata (source_object_id);
 
 CREATE TABLE dq_rule (
 	id INTEGER NOT NULL IDENTITY, 

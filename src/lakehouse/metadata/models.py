@@ -30,6 +30,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from lakehouse.metadata.enums import (
     Layer,
     LoadStrategy,
+    MaskingStrategy,
     RuleType,
     RunStatus,
     Sensitivity,
@@ -211,6 +212,12 @@ class ColumnMetadata(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("source_object_id", "column_name", name="uq_column_metadata"),
         _check("sensitivity", Sensitivity),
+        _check("masking_strategy", MaskingStrategy),
+        CheckConstraint(
+            "sensitivity <> 'none' OR masking_strategy = 'none'",
+            name="ck_unclassified_is_unmasked",
+        ),
+        Index("ix_column_metadata_object", "source_object_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -219,6 +226,21 @@ class ColumnMetadata(TimestampMixin, Base):
     )
     column_name: Mapped[str] = mapped_column(String(200), nullable=False)
     sensitivity: Mapped[str] = mapped_column(String(20), default=Sensitivity.NONE, nullable=False)
+
+    masking_strategy: Mapped[str] = mapped_column(
+        String(20), default=MaskingStrategy.NONE, nullable=False
+    )
+    """How Silver masks this column. Independent of `sensitivity` because
+    the classification is a statement about the data and the strategy is a
+    decision about what to do with it — two columns can both be PII and
+    still need different treatment."""
+
+    allow_in_gold: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    """Allow-list for `sensitive_pii`. Those columns are dropped on the way
+    into Gold unless someone has deliberately said otherwise, so the
+    default for the star schema is that the most sensitive data is simply
+    not there."""
+
     business_description: Mapped[str | None] = mapped_column(Text)
 
     source_object: Mapped[SourceObject] = relationship(back_populates="columns")
