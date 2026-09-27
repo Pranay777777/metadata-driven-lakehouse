@@ -25,6 +25,7 @@ import pyarrow.parquet as pq
 from deltalake import DeltaTable, write_deltalake
 from sqlalchemy.orm import Session
 
+from lakehouse.metadata.drift import check_drift
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus
 from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
 
@@ -145,6 +146,7 @@ def load_full(
 
     try:
         table = source.read(obj)
+        check_drift(session, obj, table)
         stamped = add_provenance(table, run.run_id, obj.object_name)
         target = lake_root / obj.target_path
         target.parent.mkdir(parents=True, exist_ok=True)

@@ -31,6 +31,7 @@ from deltalake import DeltaTable, write_deltalake
 from sqlalchemy.orm import Session
 
 from lakehouse.ingest.bronze import Source, add_provenance
+from lakehouse.metadata.drift import check_drift
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus, WatermarkType
 from lakehouse.metadata.models import LoadWatermark, PipelineRun, SourceObject, TaskRun
 
@@ -186,6 +187,7 @@ def load_incremental(
 
     try:
         table = source.read_since(obj, effective_since)
+        check_drift(session, obj, table)
         if table.num_rows and column not in table.column_names:
             raise KeyError(
                 f"incremental column '{column}' not present in source "

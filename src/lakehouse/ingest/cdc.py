@@ -29,6 +29,7 @@ from deltalake import DeltaTable, write_deltalake
 from sqlalchemy.orm import Session
 
 from lakehouse.ingest.bronze import Source, add_provenance
+from lakehouse.metadata.drift import check_drift
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus
 from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
 from lakehouse.tables import latest_per_key, require_columns
@@ -133,6 +134,7 @@ def load_cdc(
 
     try:
         raw = source.read(obj)
+        check_drift(session, obj, raw)
         collapsed = collapse_changes(raw, keys, sequence)
         upserts, _deletes = split_deletes(collapsed, obj)
         target = lake_root / obj.target_path
