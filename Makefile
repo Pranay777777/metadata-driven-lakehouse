@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs stack test lint format typecheck security seed register run demo dagster bench eval clean
+.PHONY: help install up down logs stack test lint format typecheck security seed register run demo dagster bench optimize vacuum replay eval clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -59,6 +59,15 @@ dagster:  ## Open the Dagster UI at http://localhost:3001
 
 bench:  ## Benchmark the arrow and spark engines (ROWS=2000000 make bench)
 	python scripts/benchmark_engines.py --rows $${ROWS:-1000000}
+
+optimize:  ## Compact every table (ZORDER=col to also Z-order)
+	python -m lakehouse.maintenance --compact $${ZORDER:+--zorder-by $$ZORDER}
+
+vacuum:  ## Dry-run vacuum; APPLY=1 to delete for real
+	python -m lakehouse.maintenance --vacuum $${APPLY:+--apply}
+
+replay:  ## Rewind a source: make replay SOURCE=orders FROM=2026-03-01 [APPLY=1]
+	python -m lakehouse.replay rewind --source $(SOURCE) --from $(FROM) $${APPLY:+--apply}
 
 eval:  ## Run the evaluation harness (AI projects only)
 	python -m lakehouse.eval
