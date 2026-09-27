@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs stack test lint format typecheck security seed register run demo eval clean
+.PHONY: help install up down logs stack test lint format typecheck security seed register run demo dagster bench eval clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -53,6 +53,12 @@ demo:  ## Seed, register and run the whole platform end to end
 	@$(MAKE) --no-print-directory seed
 	@$(MAKE) --no-print-directory register
 	@$(MAKE) --no-print-directory run
+
+dagster:  ## Open the Dagster UI at http://localhost:3001
+	dagster dev -m lakehouse.orchestration -p 3001
+
+bench:  ## Benchmark the arrow and spark engines (ROWS=2000000 make bench)
+	python scripts/benchmark_engines.py --rows $${ROWS:-1000000}
 
 eval:  ## Run the evaluation harness (AI projects only)
 	python -m lakehouse.eval

@@ -25,6 +25,17 @@ dev = [
   "pre-commit>=3.7",
   "pip-audit>=2.7",
   "types-PyYAML>=6.0",
+  "dagster>=1.9",
+  "pyspark>=4.0",
+]
+
+orchestration = [
+  "dagster>=1.9",
+  "dagster-webserver>=1.9",
+]
+
+spark = [
+  "pyspark>=4.0",
 ]
 
 [build-system]

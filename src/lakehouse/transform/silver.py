@@ -31,6 +31,8 @@ import pyarrow as pa
 from deltalake import DeltaTable, write_deltalake
 from sqlalchemy.orm import Session
 
+from lakehouse.config import Settings
+from lakehouse.engines import get_engine
 from lakehouse.ingest.bronze import INGESTED_AT, read_bronze
 from lakehouse.lineage import (
     Recording,
@@ -43,7 +45,6 @@ from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
 from lakehouse.quality import QualityOutcome, evaluate, write_quarantine
 from lakehouse.tables import (
     epoch_to_timestamp,
-    latest_per_key,
     rename_snake_case,
     require_columns,
     to_snake_case,
@@ -158,7 +159,9 @@ def build_silver(
         sequence = obj.incremental_column if obj.incremental_column else INGESTED_AT
         require_columns(bronze, [sequence], f"bronze table for '{obj.object_name}'")
 
-        deduped = latest_per_key(bronze, keys, sequence)
+        # Dedupe is the heaviest transform here, so it is the one
+        # that runs on the configured engine (ADR-014).
+        deduped = get_engine(Settings().engine).latest_per_key(bronze, keys, sequence)
         conformed = conform(deduped)
 
         # Quality is enforced here rather than at Bronze: ADR-004 makes

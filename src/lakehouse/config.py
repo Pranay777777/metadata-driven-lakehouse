@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     picks has changed between versions — an ambiguity that surfaces as
     ModuleNotFoundError on a machine that has the other one."""
 
+    engine: Literal["arrow", "spark"] = "arrow"
+    """Compute engine for the heavy transforms. Arrow needs no JVM and is
+    faster for anything that fits in memory, which is most things."""
+
+    spark_driver_memory: str = "2g"
+    """Heap for the Spark driver. The default 1g is not enough to collect
+    a couple of million rows back, which is what `toArrow` does — the
+    failure is `TaskResultLost`, which does not name memory at all."""
+
+    spark_master: str = "local[*]"
+
     lake_root: str = "./lake"
     """Where Delta tables are written. A local path today; see ADR-011."""
 
