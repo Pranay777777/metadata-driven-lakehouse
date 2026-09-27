@@ -44,6 +44,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from lakehouse.config import Settings
+from lakehouse.credentials import database_url
 from lakehouse.ingest.bronze import start_pipeline_run
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus, WatermarkType
 from lakehouse.metadata.models import LoadWatermark, SourceObject, TaskRun
@@ -246,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{verb} {args.path} to v{target} (state at {moment.isoformat()})")
         else:
             settings = Settings()
-            with Session(create_engine(settings.database_url)) as session:
+            with Session(create_engine(database_url(settings))) as session:
                 obj = find_object(session, args.source)
                 plan = (
                     rewind(session, obj, moment)

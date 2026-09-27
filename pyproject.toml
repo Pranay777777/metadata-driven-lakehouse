@@ -38,6 +38,11 @@ spark = [
   "pyspark>=4.0",
 ]
 
+azure = [
+  "azure-identity>=1.19",
+  "azure-keyvault-secrets>=4.9",
+]
+
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
@@ -65,7 +70,7 @@ show_error_codes = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["pyarrow.*"]
+module = ["pyarrow.*", "azure.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

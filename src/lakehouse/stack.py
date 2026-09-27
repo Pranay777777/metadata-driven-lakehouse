@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from lakehouse.config import Settings
+from lakehouse.credentials import database_url
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,7 @@ def _tcp(host: str, port: int, timeout: float) -> str:
 
 def build_checks(settings: Settings, timeout: float = 3.0) -> list[Check]:
     """The checks appropriate to the configured endpoints."""
-    database = urlparse(settings.database_url)
+    database = urlparse(database_url(settings))
     marquez = settings.openlineage_url.rstrip("/")
 
     return [

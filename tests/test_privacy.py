@@ -7,10 +7,12 @@ from pathlib import Path
 
 import pyarrow as pa
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session
 
 from lakehouse.config import Settings
+from lakehouse.credentials import SecretNotFoundError
 from lakehouse.ingest.bronze import load_full, start_pipeline_run
 from lakehouse.metadata.enums import (
     LoadStrategy,
@@ -263,17 +265,40 @@ def test_masking_preserves_the_schema() -> None:
     assert masked.schema == people().schema
 
 
+class _Store:
+    """A secret store holding whatever the test gives it."""
+
+    def __init__(self, backend: str = "env", **secrets: str) -> None:
+        self.backend = backend
+        self._secrets = secrets
+
+    def get(self, name: str) -> SecretStr | None:
+        value = self._secrets.get(name)
+        return SecretStr(value) if value else None
+
+
 def test_the_default_key_warns(caplog: pytest.LogCaptureFixture) -> None:
-    settings = Settings(masking_key="")
     with caplog.at_level("WARNING"):
-        assert masking_key(settings) == DEV_MASKING_KEY.encode()
+        assert masking_key(Settings(), _Store()) == DEV_MASKING_KEY.encode()
     assert "development key" in caplog.text
 
 
 def test_a_configured_key_is_used_quietly(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level("WARNING"):
-        assert masking_key(Settings(masking_key="real")) == b"real"
+        assert masking_key(Settings(), _Store(**{"masking-key": "real"})) == b"real"
     assert "development key" not in caplog.text
+
+
+def test_the_key_name_is_configuration() -> None:
+    settings = Settings(masking_key_secret="pii-hmac")
+    assert masking_key(settings, _Store(**{"pii-hmac": "other"})) == b"other"
+
+
+def test_a_missing_key_in_key_vault_stops_the_run() -> None:
+    # A production run masking with a public key looks like protection
+    # and is not — failing is the honest outcome (ADR-017, ADR-018).
+    with pytest.raises(SecretNotFoundError, match="masking-key"):
+        masking_key(Settings(), _Store(backend="keyvault"))
 
 
 # --- gold restriction -----------------------------------------------------

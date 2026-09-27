@@ -20,10 +20,33 @@ class Settings(BaseSettings):
     app_env: Literal["local", "ci", "staging", "prod"] = "local"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     database_url: str = "postgresql+psycopg://app:app@localhost:5432/app"
-    """The driver is named explicitly. A bare `postgresql://` leaves
+    """The local compose stack's control plane. The credential in it exists
+    only inside a container on the developer's machine, which is the one
+    place a connection string in configuration is acceptable. Everywhere
+    else set `database_url_secret` and this value is ignored.
+
+    The driver is named explicitly. A bare `postgresql://` leaves
     SQLAlchemy to pick between psycopg2 and psycopg 3, and which one it
     picks has changed between versions — an ambiguity that surfaces as
     ModuleNotFoundError on a machine that has the other one."""
+
+    database_url_secret: str = ""
+    """Name of the secret holding the control-plane URL. When set, the URL
+    is resolved through the secret store (ADR-018)."""
+
+    # --- secrets ------------------------------------------------------------
+    # Only names live in configuration. Values are resolved at the moment
+    # they are needed, by `lakehouse.credentials` (design rule 6).
+    secrets_backend: Literal["env", "keyvault"] = "env"
+    """Where named secrets are resolved. `env` reads the environment and
+    `.env`; `keyvault` reads Azure Key Vault via managed identity."""
+
+    key_vault_url: str = ""
+    """e.g. https://my-vault.vault.azure.net — required for `keyvault`."""
+
+    masking_key_secret: str = "masking-key"  # noqa: S105 — a secret's name, not its value
+    """Name of the secret holding the PII masking key (ADR-017). With the
+    env backend that is the `MASKING_KEY` variable."""
 
     engine: Literal["arrow", "spark"] = "arrow"
     """Compute engine for the heavy transforms. Arrow needs no JVM and is
@@ -41,20 +64,13 @@ class Settings(BaseSettings):
 
     # --- object storage ---------------------------------------------------
     # Nothing reads these yet: the lake writes to local disk and the
-    # compose stack ships no object storage (ADR-011). They exist so the
-    # settings surface is stable when step 33 moves the lake off disk.
+    # compose stack ships no object storage (ADR-011).
     s3_endpoint_url: str = ""
     s3_bucket: str = "lakehouse"
-    s3_access_key_id: str = ""
-    s3_secret_access_key: str = ""
-    """Empty by default. Step 37 resolves real credentials by name."""
-
-    masking_key: str = ""
-    """Key for the HMAC that masks classified columns. Empty means the
-    built-in development key, which is published in this repository and
-    therefore offers no protection at all — `lakehouse.privacy` warns
-    when it is in use. Step 37 resolves the real key by secret name; the
-    control plane never holds the value (design rule 6)."""
+    s3_credentials_secret: str = ""
+    """Name of the secret holding object-storage credentials. The access
+    key and secret used to be two settings holding the values themselves,
+    which is exactly what design rule 6 forbids."""
 
     openlineage_url: str = "http://localhost:5000"
     openlineage_namespace: str = "lakehouse"

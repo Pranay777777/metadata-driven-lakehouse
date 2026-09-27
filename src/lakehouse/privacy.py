@@ -50,6 +50,13 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from lakehouse.config import Settings
+from lakehouse.credentials import (
+    SecretNotFoundError,
+    SecretStore,
+    database_url,
+    get_store,
+    resolve,
+)
 from lakehouse.ingest.bronze import read_bronze
 from lakehouse.logging import configure_logging
 from lakehouse.metadata.enums import MaskingStrategy, Sensitivity
@@ -59,7 +66,7 @@ from lakehouse.tables import to_snake_case
 logger = logging.getLogger(__name__)
 
 DEV_MASKING_KEY = "lakehouse-development-masking-key"
-"""Used when `masking_key` is unset. Published, so it protects nothing."""
+"""Used when no masking key is set locally. Published, so it protects nothing."""
 
 _HASH_LENGTH = 32
 """Hex characters kept from the HMAC. 128 bits — collisions are not the
@@ -358,14 +365,25 @@ def load_policies(session: Session, obj: SourceObject) -> dict[str, ColumnPolicy
     }
 
 
-def masking_key(settings: Settings | None = None) -> bytes:
-    """The HMAC key, warning loudly if it is the published default."""
-    configured = (settings or Settings()).masking_key
-    if configured:
-        return configured.encode("utf-8")
+def masking_key(settings: Settings | None = None, store: SecretStore | None = None) -> bytes:
+    """The HMAC key, resolved by name through the secret store.
+
+    Missing on a laptop, the published development key is used with a
+    warning, so the demo runs out of the box. Missing from Key Vault is a
+    hard failure: a production run silently masking with a public key
+    would be worse than not masking, because it looks like protection.
+    """
+    resolved = settings or Settings()
+    source = store or get_store(resolved)
+    try:
+        return resolve(resolved.masking_key_secret, source).get_secret_value().encode("utf-8")
+    except SecretNotFoundError:
+        if source.backend != "env":
+            raise
     logger.warning(
-        "masking_key is unset — using the development key, which is public. "
-        "Set MASKING_KEY before masking anything that matters."
+        "masking key '%s' is not set — using the development key, which is public. "
+        "Set MASKING_KEY before masking anything that matters.",
+        resolved.masking_key_secret,
     )
     return DEV_MASKING_KEY.encode("utf-8")
 
@@ -481,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(settings.log_level)
     lake_root = args.lake_root or Path(settings.lake_root)
 
-    engine = create_engine(settings.database_url)
+    engine = create_engine(database_url(settings))
     Base.metadata.create_all(engine)
 
     scanned = 0

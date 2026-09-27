@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from lakehouse.config import Settings
 from lakehouse.contracts.sync import ContractError, load_contracts, sync_contract
+from lakehouse.credentials import database_url
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.sync:
         return 0
 
-    engine = create_engine(Settings().database_url)
+    engine = create_engine(database_url(Settings()))
     with Session(engine) as session:
         for contract in contracts:
             try:

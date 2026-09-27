@@ -31,6 +31,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from lakehouse.config import Settings
+from lakehouse.credentials import database_url
 from lakehouse.ingest.bronze import ParquetSource
 from lakehouse.ingest.runner import run_pipeline
 from lakehouse.logging import configure_logging
@@ -224,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(settings.log_level)
     lake_root = args.lake_root or Path(settings.lake_root)
 
-    engine = create_engine(settings.database_url)
+    engine = create_engine(database_url(settings))
     Base.metadata.create_all(engine)
 
     with Session(engine) as session:

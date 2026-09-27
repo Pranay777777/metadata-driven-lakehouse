@@ -46,6 +46,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from lakehouse.config import Settings
+from lakehouse.credentials import database_url
 from lakehouse.ingest.bronze import ParquetSource, start_pipeline_run
 from lakehouse.ingest.runner import run_pipeline
 from lakehouse.metadata.models import SourceObject
@@ -73,7 +74,7 @@ class LakehouseResource:
         self.settings = settings or Settings()
         self.data_dir = data_dir or Path("data/generated")
         self.lake_root = Path(self.settings.lake_root)
-        self._engine = create_engine(self.settings.database_url)
+        self._engine = create_engine(database_url(self.settings))
 
     def session(self) -> Session:
         return Session(self._engine)
