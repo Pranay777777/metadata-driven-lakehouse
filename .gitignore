@@ -73,3 +73,6 @@ Thumbs.db
 
 # Generated synthetic data
 data/generated/
+
+# Local Delta lake written by `make run` — generated, never committed
+lake/
