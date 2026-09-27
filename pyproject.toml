@@ -11,6 +11,7 @@ dependencies = [
   "numpy>=1.26",
   "pyarrow>=18.0",
   "deltalake>=0.25",
+  "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +22,7 @@ dev = [
   "mypy>=1.10",
   "pre-commit>=3.7",
   "pip-audit>=2.7",
+  "types-PyYAML>=6.0",
 ]
 
 [build-system]

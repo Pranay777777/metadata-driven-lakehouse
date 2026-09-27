@@ -1,0 +1,42 @@
+# Example contract. Sync it into the control plane with:
+#     python -m lakehouse.contracts --sync
+version: 1
+source_system: seed
+object: customers
+owner: data-platform@example.com
+description: >
+  One row per customer. The natural key is customer_id; city is
+  free text from the source and is not validated upstream.
+
+freshness_sla_minutes: 1440
+freshness_column: updated_at
+
+columns:
+  - name: customer_id
+    type: string
+    nullable: false
+    description: Natural key. Stable for the lifetime of the customer.
+    null_severity: fail
+    expect:
+      unique: true
+      severity: fail
+
+  - name: city
+    type: string
+    description: Free text. Trimmed in Silver, never corrected.
+    expect:
+      pattern: "^[A-Za-z .'-]+$"
+      severity: warn
+
+  - name: score
+    type: int64
+    description: Internal 0-100 rating. Out-of-range values are quarantined.
+    expect:
+      minimum: 0
+      maximum: 100
+      severity: quarantine
+
+  - name: updated_at
+    type: int64
+    nullable: false
+    description: Epoch seconds. Drives the incremental watermark.
