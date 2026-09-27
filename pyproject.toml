@@ -11,7 +11,7 @@ dependencies = [
   "alembic>=1.14",
   "numpy>=1.26",
   "pyarrow>=18.0",
-  "deltalake>=0.25",
+  "deltalake>=1.6.6",
   "PyYAML>=6.0",
   "openlineage-python>=1.30",
 ]
