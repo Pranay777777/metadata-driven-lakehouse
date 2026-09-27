@@ -43,6 +43,7 @@ from deltalake import DeltaTable, write_deltalake
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from lakehouse.lineage import Recording, default_lineage, lake_dataset, renamed_lineage
 from lakehouse.metadata.enums import GoldRole, Layer, RunStatus
 from lakehouse.metadata.models import GoldReference, PipelineRun, SourceObject, TaskRun
 from lakehouse.tables import require_columns, to_snake_case
@@ -81,6 +82,13 @@ def gold_path(obj: SourceObject) -> str:
     """Where an object lands in Gold, prefixed by its role."""
     prefix = "fact" if obj.gold_role == GoldRole.FACT else "dim"
     return f"{Layer.GOLD}/{prefix}_{to_snake_case(obj.object_name)}"
+
+
+def silver_source(obj: SourceObject) -> str:
+    """The Silver table a Gold object is published from."""
+    from lakehouse.transform.silver import silver_path
+
+    return silver_path(obj)
 
 
 def surrogate_column(obj: SourceObject) -> str:
@@ -145,6 +153,9 @@ def build_dimension(
 ) -> GoldResult:
     """Publish a Silver object as a dimension with surrogate keys."""
     started, task = _start(session, run, obj)
+    lineage = default_lineage()
+    job = f"{Layer.GOLD}.dim_{obj.object_name}"
+    lineage_run = lineage.begin(job)
     try:
         silver = read_silver(lake_root, obj)
         keys = natural_keys(obj)
@@ -164,7 +175,25 @@ def build_dimension(
         version = DeltaTable(str(target)).version()
     except Exception as exc:
         _fail(session, task, exc)
+        lineage.finish(job, lineage_run, error=f"{type(exc).__name__}: {exc}")
         raise
+
+    upstream = lake_dataset(silver_source(obj))
+    recording = Recording()
+    recording.reads(upstream)
+    recording.writes(
+        lake_dataset(
+            gold_path(obj),
+            published.schema,
+            # The surrogate is derived from the natural key, so that is
+            # the edge worth recording; everything else passes through.
+            column_lineage={
+                **renamed_lineage(upstream, {c: c for c in silver.column_names}),
+                surrogate_column(obj): [(upstream.namespace, upstream.name, k) for k in keys],
+            },
+        )
+    )
+    lineage.finish(job, lineage_run, recording)
 
     return _finish(
         session,
@@ -238,6 +267,9 @@ def build_fact(
 ) -> GoldResult:
     """Publish a Silver object as a fact, natural keys swapped for surrogates."""
     started, task = _start(session, run, obj)
+    lineage = default_lineage()
+    job = f"{Layer.GOLD}.fact_{obj.object_name}"
+    lineage_run = lineage.begin(job)
     try:
         silver = read_silver(lake_root, obj)
         references = list(
@@ -272,7 +304,14 @@ def build_fact(
         version = DeltaTable(str(target)).version()
     except Exception as exc:
         _fail(session, task, exc)
+        lineage.finish(job, lineage_run, error=f"{type(exc).__name__}: {exc}")
         raise
+
+    upstream = lake_dataset(silver_source(obj))
+    recording = Recording()
+    recording.reads(upstream)
+    recording.writes(lake_dataset(gold_path(obj), table.schema))
+    lineage.finish(job, lineage_run, recording)
 
     return _finish(
         session,

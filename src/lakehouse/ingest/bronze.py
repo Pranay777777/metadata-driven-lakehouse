@@ -25,6 +25,13 @@ import pyarrow.parquet as pq
 from deltalake import DeltaTable, write_deltalake
 from sqlalchemy.orm import Session
 
+from lakehouse.lineage import (
+    Recording,
+    default_lineage,
+    identity_lineage,
+    lake_dataset,
+    source_dataset,
+)
 from lakehouse.metadata.drift import check_drift
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus
 from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
@@ -144,6 +151,10 @@ def load_full(
     session.add(task)
     session.commit()
 
+    lineage = default_lineage()
+    job = f"{Layer.BRONZE}.{obj.object_name}"
+    lineage_run = lineage.begin(job)
+
     try:
         table = source.read(obj)
         check_drift(session, obj, table)
@@ -158,7 +169,23 @@ def load_full(
         task.error_message = f"{type(exc).__name__}: {exc}"
         task.ended_at = datetime.now(UTC)
         session.commit()
+        lineage.finish(job, lineage_run, error=f"{type(exc).__name__}: {exc}")
         raise
+
+    upstream = source_dataset(obj)
+    recording = Recording()
+    recording.reads(upstream)
+    recording.writes(
+        lake_dataset(
+            obj.target_path,
+            stamped.schema,
+            # Bronze copies faithfully; the provenance columns it adds
+            # have no upstream field and are left unmapped rather than
+            # attributed to something invented.
+            column_lineage=identity_lineage(upstream, list(table.column_names)),
+        )
+    )
+    lineage.finish(job, lineage_run, recording)
 
     elapsed = time.perf_counter() - started
     task.status = RunStatus.SUCCEEDED

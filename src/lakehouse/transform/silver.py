@@ -32,6 +32,12 @@ from deltalake import DeltaTable, write_deltalake
 from sqlalchemy.orm import Session
 
 from lakehouse.ingest.bronze import INGESTED_AT, read_bronze
+from lakehouse.lineage import (
+    Recording,
+    default_lineage,
+    lake_dataset,
+    renamed_lineage,
+)
 from lakehouse.metadata.enums import Layer, RunStatus
 from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
 from lakehouse.quality import QualityOutcome, evaluate, write_quarantine
@@ -142,6 +148,10 @@ def build_silver(
     session.add(task)
     session.commit()
 
+    lineage = default_lineage()
+    job = f"{Layer.SILVER}.{obj.object_name}"
+    lineage_run = lineage.begin(job)
+
     try:
         bronze = read_bronze(lake_root, obj)
         keys = dedupe_keys(obj, bronze)
@@ -188,7 +198,24 @@ def build_silver(
         task.error_message = f"{type(exc).__name__}: {exc}"
         task.ended_at = datetime.now(UTC)
         session.commit()
+        lineage.finish(job, lineage_run, error=f"{type(exc).__name__}: {exc}")
         raise
+
+    upstream = lake_dataset(obj.target_path)
+    recording = Recording()
+    recording.reads(upstream)
+    recording.writes(
+        lake_dataset(
+            silver_path(obj),
+            conformed.schema,
+            # Silver renames rather than derives: each output column is
+            # the same value under a conformed name.
+            column_lineage=renamed_lineage(
+                upstream, {to_snake_case(c): c for c in bronze.column_names}
+            ),
+        )
+    )
+    lineage.finish(job, lineage_run, recording)
 
     elapsed = time.perf_counter() - started
     task.status = quality.status

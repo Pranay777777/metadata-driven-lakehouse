@@ -31,6 +31,13 @@ from deltalake import DeltaTable, write_deltalake
 from sqlalchemy.orm import Session
 
 from lakehouse.ingest.bronze import Source, add_provenance
+from lakehouse.lineage import (
+    Recording,
+    default_lineage,
+    identity_lineage,
+    lake_dataset,
+    source_dataset,
+)
 from lakehouse.metadata.drift import check_drift
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus, WatermarkType
 from lakehouse.metadata.models import LoadWatermark, PipelineRun, SourceObject, TaskRun
@@ -185,6 +192,10 @@ def load_incremental(
     session.add(task)
     session.commit()
 
+    lineage = default_lineage()
+    job = f"{Layer.BRONZE}.{obj.object_name}"
+    lineage_run = lineage.begin(job)
+
     try:
         table = source.read_since(obj, effective_since)
         check_drift(session, obj, table)
@@ -206,7 +217,20 @@ def load_incremental(
         task.ended_at = datetime.now(UTC)
         session.commit()
         # Watermark deliberately untouched: the next run retries this window.
+        lineage.finish(job, lineage_run, error=f"{type(exc).__name__}: {exc}")
         raise
+
+    upstream = source_dataset(obj)
+    recording = Recording()
+    recording.reads(upstream)
+    recording.writes(
+        lake_dataset(
+            obj.target_path,
+            table.schema if table.num_rows else None,
+            column_lineage=identity_lineage(upstream, list(table.column_names)),
+        )
+    )
+    lineage.finish(job, lineage_run, recording)
 
     reprocessed = 0
     if table.num_rows and since is not None and effective_since is not since:
