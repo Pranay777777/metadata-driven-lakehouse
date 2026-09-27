@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from lakehouse.ingest.bronze import Source, add_provenance
 from lakehouse.metadata.enums import Layer, LoadStrategy, RunStatus
 from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
+from lakehouse.tables import latest_per_key, require_columns
 
 
 @dataclass(frozen=True)
@@ -67,25 +68,11 @@ def key_columns(obj: SourceObject) -> list[str]:
 def collapse_changes(table: pa.Table, keys: list[str], sequence_column: str) -> pa.Table:
     """Reduce a change batch to the newest row per key.
 
-    Sorts by key then sequence descending and keeps the first occurrence
-    of each key, so the surviving row is the latest change.
+    Thin wrapper over the shared helper — Silver performs the identical
+    operation for a different reason, so the logic lives in one place.
     """
-    missing = [c for c in [*keys, sequence_column] if c not in table.column_names]
-    if missing:
-        raise KeyError(f"change feed is missing required column(s): {', '.join(missing)}")
-    if table.num_rows == 0:
-        return table
-
-    ordered = table.sort_by([*[(k, "ascending") for k in keys], (sequence_column, "descending")])
-    seen: set[tuple[object, ...]] = set()
-    keep: list[int] = []
-    columns = [ordered.column(k).to_pylist() for k in keys]
-    for i in range(ordered.num_rows):
-        composite = tuple(col[i] for col in columns)
-        if composite not in seen:
-            seen.add(composite)
-            keep.append(i)
-    return ordered.take(pa.array(keep))
+    require_columns(table, [*keys, sequence_column], "change feed")
+    return latest_per_key(table, keys, sequence_column)
 
 
 def split_deletes(table: pa.Table, obj: SourceObject) -> tuple[pa.Table, pa.Table]:
