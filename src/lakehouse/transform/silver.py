@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from lakehouse.ingest.bronze import INGESTED_AT, read_bronze
 from lakehouse.metadata.enums import Layer, RunStatus
 from lakehouse.metadata.models import PipelineRun, SourceObject, TaskRun
+from lakehouse.quality import QualityOutcome, evaluate, write_quarantine
 from lakehouse.tables import (
     epoch_to_timestamp,
     latest_per_key,
@@ -59,6 +60,9 @@ class SilverResult:
     duration_seconds: float
     scd2: Scd2Outcome | None = None
     """Version bookkeeping, present only when the object tracks history."""
+
+    quality: QualityOutcome | None = None
+    """Rule results for this build. Quarantined rows are in `quality.rejected`."""
 
     @property
     def duplicates_removed(self) -> int:
@@ -147,6 +151,17 @@ def build_silver(
         deduped = latest_per_key(bronze, keys, sequence)
         conformed = conform(deduped)
 
+        # Quality is enforced here rather than at Bronze: ADR-004 makes
+        # Bronze deliberately faithful to the source, messiness included.
+        # Silver is the first layer anyone should query, so it is the
+        # first layer that owes any guarantee about its contents.
+        quality = evaluate(session, task, obj, conformed)
+        _dropped = bronze.num_rows - deduped.num_rows
+        # Diverted rows are written before the layer itself, so a crash
+        # between the two loses the load rather than the evidence.
+        write_quarantine(lake_root, obj, quality.rejected, run.run_id, task.id, Layer.SILVER)
+        conformed = quality.kept
+
         target = lake_root / silver_path(obj)
         target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -160,12 +175,12 @@ def build_silver(
                 allow_deletes=represents_current_state(obj.load_strategy),
             )
             written = outcome.rows_written
-            rejected = (bronze.num_rows - conformed.num_rows) + outcome.late_skipped
+            rejected = _dropped + quality.rows_rejected + outcome.late_skipped
         else:
             write_deltalake(str(target), conformed, mode="overwrite", schema_mode="overwrite")
             outcome = None
             written = conformed.num_rows
-            rejected = bronze.num_rows - conformed.num_rows
+            rejected = _dropped + quality.rows_rejected
 
         version = DeltaTable(str(target)).version()
     except Exception as exc:
@@ -176,7 +191,7 @@ def build_silver(
         raise
 
     elapsed = time.perf_counter() - started
-    task.status = RunStatus.SUCCEEDED
+    task.status = quality.status
     task.rows_read = bronze.num_rows
     task.rows_written = written
     task.rows_rejected = rejected
@@ -192,6 +207,7 @@ def build_silver(
         delta_version=version,
         duration_seconds=elapsed,
         scd2=outcome,
+        quality=quality,
     )
 
 
