@@ -1,0 +1,11 @@
+# Store and check out text as LF on every platform.
+# Without this, Git on Windows converts to CRLF in the working copy and
+# warns on every commit; ruff and the Linux CI both expect LF.
+* text=auto eol=lf
+
+# Never touch binaries.
+*.png binary
+*.jpg binary
+*.gif binary
+*.parquet binary
+*.zip binary
