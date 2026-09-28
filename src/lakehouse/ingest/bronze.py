@@ -192,7 +192,7 @@ def load_full(
     task.rows_read = table.num_rows
     task.rows_written = stamped.num_rows
     task.ended_at = datetime.now(UTC)
-    task.duration_seconds = int(elapsed)
+    task.duration_seconds = round(elapsed, 3)
     session.commit()
 
     return LoadResult(

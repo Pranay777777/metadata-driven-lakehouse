@@ -60,7 +60,8 @@ from lakehouse.credentials import (
 from lakehouse.ingest.bronze import read_bronze
 from lakehouse.logging import configure_logging
 from lakehouse.metadata.enums import MaskingStrategy, Sensitivity
-from lakehouse.metadata.models import Base, ColumnMetadata, SourceObject
+from lakehouse.metadata.models import ColumnMetadata, SourceObject
+from lakehouse.migrate import ensure_schema
 from lakehouse.tables import to_snake_case
 
 logger = logging.getLogger(__name__)
@@ -500,7 +501,7 @@ def main(argv: list[str] | None = None) -> int:
     lake_root = args.lake_root or Path(settings.lake_root)
 
     engine = create_engine(database_url(settings))
-    Base.metadata.create_all(engine)
+    ensure_schema(engine)
 
     scanned = 0
     written = 0

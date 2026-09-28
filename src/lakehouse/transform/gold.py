@@ -408,7 +408,7 @@ def _finish(session: Session, task: TaskRun, started: float, result: GoldResult)
     task.rows_written = result.rows_written
     task.rows_rejected = result.unresolved_total
     task.ended_at = datetime.now(UTC)
-    task.duration_seconds = int(elapsed)
+    task.duration_seconds = round(elapsed, 3)
     session.commit()
     return GoldResult(
         run_id=result.run_id,

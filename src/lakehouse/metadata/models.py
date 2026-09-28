@@ -17,6 +17,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -409,7 +410,10 @@ class TaskRun(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    duration_seconds: Mapped[float | None] = mapped_column(Float)
+    """Wall-clock seconds, fractional. It was an integer until step 39, which
+    floored every sub-second task to zero and made the dashboard's
+    compute-time figure read 0 at demo scale (migration 0002)."""
 
     run: Mapped[PipelineRun] = relationship(back_populates="tasks")
     dq_results: Mapped[list[DataQualityResult]] = relationship(

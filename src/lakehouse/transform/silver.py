@@ -239,7 +239,7 @@ def build_silver(
     task.rows_written = written
     task.rows_rejected = rejected
     task.ended_at = datetime.now(UTC)
-    task.duration_seconds = int(elapsed)
+    task.duration_seconds = round(elapsed, 3)
     session.commit()
 
     return SilverResult(

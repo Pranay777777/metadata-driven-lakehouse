@@ -182,7 +182,7 @@ def load_cdc(
     task.rows_written = inserted + updated + deleted
     task.rows_rejected = raw.num_rows - collapsed.num_rows
     task.ended_at = datetime.now(UTC)
-    task.duration_seconds = int(elapsed)
+    task.duration_seconds = round(elapsed, 3)
     session.commit()
 
     return MergeResult(

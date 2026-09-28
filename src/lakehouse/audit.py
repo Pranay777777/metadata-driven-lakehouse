@@ -493,7 +493,7 @@ class VolumePoint:
     layer: str
     tasks: int
     rows_written: int
-    compute_seconds: int
+    compute_seconds: float
     """Summed task duration — the cost proxy. See ADR-019 for why there is
     no currency figure."""
 
@@ -518,7 +518,7 @@ def volume_trend(
     ).all()
     return [
         # Postgres returns a date, SQLite a string; both print as ISO.
-        VolumePoint(str(d)[:10], layer, int(n), int(written or 0), int(seconds or 0))
+        VolumePoint(str(d)[:10], layer, int(n), int(written or 0), float(seconds or 0))
         for d, layer, n, written, seconds in rows
     ]
 

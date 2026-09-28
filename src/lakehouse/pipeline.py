@@ -38,11 +38,11 @@ from lakehouse.ingest.runner import run_pipeline
 from lakehouse.logging import configure_logging
 from lakehouse.metadata.enums import GoldRole, LoadStrategy, SourceKind
 from lakehouse.metadata.models import (
-    Base,
     GoldReference,
     SourceObject,
     SourceSystem,
 )
+from lakehouse.migrate import ensure_schema
 from lakehouse.transform.gold import build_gold
 from lakehouse.transform.silver import build_silver
 
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     lake_root = args.lake_root or Path(settings.lake_root)
 
     engine = create_engine(database_url(settings))
-    Base.metadata.create_all(engine)
+    ensure_schema(engine)
 
     with Session(engine) as session:
         if args.register:

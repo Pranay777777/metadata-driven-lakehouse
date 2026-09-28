@@ -167,7 +167,7 @@ CREATE TABLE task_run (
 	error_message TEXT NULL, 
 	started_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	ended_at DATETIMEOFFSET NULL, 
-	duration_seconds INTEGER NULL, 
+	duration_seconds FLOAT NULL, 
 	PRIMARY KEY (id), 
 	CONSTRAINT ck_status CHECK (status IN ('running', 'succeeded', 'failed', 'skipped', 'quarantined')), 
 	CONSTRAINT ck_layer CHECK (layer IN ('bronze', 'silver', 'gold')), 

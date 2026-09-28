@@ -253,7 +253,7 @@ def load_incremental(
     task.rows_written = table.num_rows
     task.watermark_to = to_text
     task.ended_at = datetime.now(UTC)
-    task.duration_seconds = int(elapsed)
+    task.duration_seconds = round(elapsed, 3)
     session.commit()
 
     return IncrementalResult(
