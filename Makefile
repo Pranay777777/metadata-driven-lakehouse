@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs stack test lint format typecheck security seed classify register run demo dagster bench optimize vacuum replay eval clean
+.PHONY: help install up down logs stack test lint format typecheck security seed classify register run demo dashboard dagster bench optimize vacuum replay eval clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -56,6 +56,9 @@ demo:  ## Seed, register and run the whole platform end to end
 	@$(MAKE) --no-print-directory seed
 	@$(MAKE) --no-print-directory register
 	@$(MAKE) --no-print-directory run
+
+dashboard:  ## Open the ops dashboard at http://localhost:8501
+	streamlit run src/lakehouse/dashboard/app.py
 
 dagster:  ## Open the Dagster UI at http://localhost:3001
 	dagster dev -m lakehouse.orchestration -p 3001

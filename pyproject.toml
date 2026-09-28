@@ -27,6 +27,7 @@ dev = [
   "types-PyYAML>=6.0",
   "dagster>=1.9",
   "pyspark>=4.0",
+  "streamlit>=1.40",
 ]
 
 orchestration = [
@@ -41,6 +42,10 @@ spark = [
 azure = [
   "azure-identity>=1.19",
   "azure-keyvault-secrets>=4.9",
+]
+
+dashboard = [
+  "streamlit>=1.40",
 ]
 
 [build-system]
@@ -69,7 +74,7 @@ show_error_codes = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["pyarrow.*", "azure.*"]
+module = ["pyarrow.*", "azure.*", "streamlit.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -1,0 +1,13 @@
+# Read by `streamlit run` from the repository root.
+
+[browser]
+# Streamlit sends anonymous usage statistics by default. An operations
+# page over a control plane has no business phoning home.
+gatherUsageStats = false
+
+[server]
+# The dashboard reads the audit trail; it never needs file uploads.
+maxUploadSize = 1
+
+[theme]
+base = "light"
