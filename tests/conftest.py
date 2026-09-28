@@ -18,3 +18,10 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
     monkeypatch.setenv("APP_ENV", "ci")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     return Settings()
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "integration: needs a real Postgres — set LAKEHOUSE_TEST_POSTGRES_URL (ADR-020)",
+    )

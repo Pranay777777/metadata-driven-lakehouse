@@ -7,6 +7,7 @@ ordinary configuration.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 
 import pyarrow as pa
@@ -19,7 +20,11 @@ pyspark = pytest.importorskip("pyspark", reason="the spark engine is an optional
 from lakehouse.engines.spark import SparkEngine, spark_available  # noqa: E402
 
 requires_jvm = pytest.mark.skipif(
-    not spark_available(), reason="no JVM available — Spark 4 needs Java 17 or later"
+    # LAKEHOUSE_SKIP_SPARK lets the Windows CI job mirror a developer
+    # machine: the runner has a JVM, but Spark writes on Windows also need
+    # Hadoop's winutils, and the Linux jobs already cover Spark.
+    bool(os.environ.get("LAKEHOUSE_SKIP_SPARK")) or not spark_available(),
+    reason="no usable JVM — Spark 4 needs Java 17 or later",
 )
 
 

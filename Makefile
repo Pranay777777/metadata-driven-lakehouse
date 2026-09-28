@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install up down logs stack test lint format typecheck security seed classify register run demo dashboard dagster bench optimize vacuum replay eval clean
+.PHONY: help install up down logs stack test lint format typecheck security seed classify migrate test-integration register run demo dashboard dagster bench optimize vacuum replay eval clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -45,6 +45,12 @@ seed:  ## Generate synthetic source data (ROWS=5000000 make seed)
 
 classify:  ## Propose PII classifications for every registered object
 	python -m lakehouse.privacy
+
+migrate:  ## Bring the control plane to the latest schema
+	python -m lakehouse.migrate
+
+test-integration:  ## Postgres integration tests (stack must be up; uses throwaway databases)
+	LAKEHOUSE_TEST_POSTGRES_URL=postgresql+psycopg://app:app@localhost:5432/app pytest -m integration --no-cov
 
 register:  ## Write the demo catalog into the control plane
 	python -m lakehouse.pipeline --register

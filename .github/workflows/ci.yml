@@ -31,33 +31,80 @@ jobs:
       - run: ruff format --check .
 
   typecheck:
-    name: Type check
+    # Both supported versions: mypy checks against the running interpreter,
+    # and a dependency that drops 3.11 (NumPy 2.5 did) changes what 3.12
+    # environments resolve — the failure only a developer machine saw.
+    name: Type check (py${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -e ".[dev]"
       - run: mypy
 
   test:
-    name: Tests
-    runs-on: ubuntu-latest
+    name: Tests (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.11" }
+          - { os: ubuntu-latest, python: "3.12" }
+          # The developer machine: Windows, Python 3.12, no Spark. The
+          # runner has a JVM, but Spark writes on Windows also need
+          # Hadoop's winutils; the Linux jobs cover Spark.
+          - { os: windows-latest, python: "3.12", skip_spark: "1" }
+    env:
+      LAKEHOUSE_SKIP_SPARK: ${{ matrix.skip_spark }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -e ".[dev]"
       - run: pytest
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage
+          name: coverage-${{ matrix.os }}-py${{ matrix.python }}
           path: coverage.xml
+
+  integration:
+    # Everything else runs on SQLite, which forgives what Postgres will not.
+    name: Integration (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14-alpine   # the compose stack's version
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      LAKEHOUSE_TEST_POSTGRES_URL: postgresql+psycopg://app:app@localhost:5432/app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest -m integration --no-cov -p no:cacheprovider
 
   security:
     name: Security
