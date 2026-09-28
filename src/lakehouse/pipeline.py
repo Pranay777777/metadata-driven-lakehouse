@@ -62,7 +62,14 @@ class CatalogEntry:
     load_order: int = 100
     references: dict[str, str] = field(default_factory=dict)
     """Fact column -> dimension object name."""
+    freshness_sla_minutes: int | None = None
+    """How stale Silver may get before the dashboard flags a breach."""
 
+
+# Demo freshness SLAs: dimensions change slowly, facts arrive continuously.
+# Without them the dashboard's breach column has nothing to judge against.
+DAILY = 24 * 60
+HOURLY = 60
 
 CATALOG: list[CatalogEntry] = [
     # Dimensions load first so the facts that reference them resolve.
@@ -72,9 +79,22 @@ CATALOG: list[CatalogEntry] = [
         scd2=True,
         gold_role=GoldRole.DIMENSION,
         load_order=10,
+        freshness_sla_minutes=DAILY,
     ),
-    CatalogEntry("products", "product_id", gold_role=GoldRole.DIMENSION, load_order=11),
-    CatalogEntry("sellers", "seller_id", gold_role=GoldRole.DIMENSION, load_order=12),
+    CatalogEntry(
+        "products",
+        "product_id",
+        gold_role=GoldRole.DIMENSION,
+        load_order=11,
+        freshness_sla_minutes=DAILY,
+    ),
+    CatalogEntry(
+        "sellers",
+        "seller_id",
+        gold_role=GoldRole.DIMENSION,
+        load_order=12,
+        freshness_sla_minutes=DAILY,
+    ),
     # Orders arrive continuously, so they load incrementally on the
     # watermark rather than by full reload.
     CatalogEntry(
@@ -84,6 +104,7 @@ CATALOG: list[CatalogEntry] = [
         gold_role=GoldRole.FACT,
         load_order=20,
         references={"customer_id": "customers"},
+        freshness_sla_minutes=HOURLY,
     ),
     CatalogEntry(
         "order_items",
@@ -92,6 +113,7 @@ CATALOG: list[CatalogEntry] = [
         gold_role=GoldRole.FACT,
         load_order=21,
         references={"product_id": "products", "seller_id": "sellers"},
+        freshness_sla_minutes=HOURLY,
     ),
 ]
 
@@ -132,6 +154,7 @@ def register(session: Session) -> list[SourceObject]:
         obj.scd2_enabled = entry.scd2
         obj.gold_role = entry.gold_role
         obj.load_order = entry.load_order
+        obj.freshness_sla_minutes = entry.freshness_sla_minutes
         obj.active = True
         objects[entry.name] = obj
     session.commit()

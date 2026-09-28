@@ -195,3 +195,63 @@ def test_every_run_is_closed_when_the_pipeline_finishes(
     assert {r.pipeline_name for r in runs} >= {"silver", "gold"}
     assert [r.pipeline_name for r in runs if r.status == RunStatus.RUNNING] == []
     assert all(r.ended_at is not None for r in runs)
+
+
+def test_a_new_source_is_onboarded_by_configuration_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The claim in the README's first line, as a test.
+
+    A sixth source joins the platform with one control-plane row and a
+    file — no Python, no new pipeline. It is inserted with plain SQL, not
+    through CATALOG, so nothing in the code knows it exists.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from sqlalchemy import select, text
+
+    from lakehouse.metadata.enums import Layer, RunStatus
+    from lakehouse.metadata.models import TaskRun
+    from lakehouse.transform.silver import read_silver
+
+    url = f"sqlite:///{tmp_path / 'control.db'}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    data, lake = tmp_path / "data", tmp_path / "lake"
+    write(generate(SeedConfig(rows=500)), data)
+    assert main(["--register", "--data-dir", str(data), "--lake-root", str(lake)]) == 0
+
+    # The whole onboarding: a file lands, and one row describes it.
+    pq.write_table(
+        pa.table(
+            {
+                "return_id": ["r1", "r2", "r2"],
+                "order_id": ["o1", "o2", "o2"],
+                "reason": ["damaged", "late", "late"],
+                "updated_at": [1, 2, 2],
+            }
+        ),
+        data / "returns.parquet",
+    )
+    engine = create_engine(url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO source_object (source_system_id, schema_name, object_name, "
+                "target_path, load_strategy, primary_key_columns, incremental_column, "
+                "active, load_order, cdc_delete_value, scd2_enabled, watermark_grace, "
+                "created_at, updated_at) "
+                "SELECT id, 'public', 'returns', 'bronze/seed/returns', 'full', 'return_id', "
+                "'updated_at', 1, 30, 'D', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP "
+                "FROM source_system WHERE name = 'seed'"
+            )
+        )
+
+    assert main(["--data-dir", str(data), "--lake-root", str(lake)]) == 0
+
+    with Session(engine) as s:
+        returns = s.scalars(select(SourceObject).where(SourceObject.object_name == "returns")).one()
+        tasks = s.scalars(select(TaskRun).where(TaskRun.source_object_id == returns.id)).all()
+        assert {t.layer for t in tasks} == {Layer.BRONZE, Layer.SILVER}
+        assert all(t.status == RunStatus.SUCCEEDED for t in tasks)
+        silver = read_silver(lake, returns)
+    assert sorted(silver.column("return_id").to_pylist()) == ["r1", "r2"]  # deduplicated
