@@ -30,6 +30,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from lakehouse.audit import track_run
 from lakehouse.config import Settings
 from lakehouse.credentials import database_url
 from lakehouse.ingest.bronze import ParquetSource
@@ -180,35 +181,37 @@ def run_all(session: Session, data_dir: Path, lake_root: Path) -> int:
         print(f"  {marker} {outcome.object_name:<14} {outcome.strategy}")
         failures += outcome.status == "failed"
 
-    from lakehouse.ingest.bronze import start_pipeline_run
+    # track_run closes each run however the block exits, with a status
+    # derived from its tasks. Before step 38 these two runs were opened
+    # and never closed, so every invocation left them 'running' forever —
+    # which the ops dashboard surfaced the first time it rendered.
+    with track_run(session, "silver") as silver_run:
+        print(f"silver  run {silver_run.run_id}")
+        for obj in ordered_objects(session):
+            try:
+                result = build_silver(session, silver_run, obj, lake_root)
+            except Exception as exc:
+                failures += 1
+                print(f"  FAIL {obj.object_name:<14} {type(exc).__name__}: {exc}")
+            else:
+                print(f"  ok   {obj.object_name:<14} {result.rows_written:>8,} rows")
 
-    silver_run = start_pipeline_run(session, "silver")
-    print(f"silver  run {silver_run.run_id}")
-    for obj in ordered_objects(session):
-        try:
-            result = build_silver(session, silver_run, obj, lake_root)
-        except Exception as exc:
-            failures += 1
-            print(f"  FAIL {obj.object_name:<14} {type(exc).__name__}: {exc}")
-        else:
-            print(f"  ok   {obj.object_name:<14} {result.rows_written:>8,} rows")
-
-    gold_run = start_pipeline_run(session, "gold")
-    print(f"gold    run {gold_run.run_id}")
-    # Dimensions before facts: a fact resolves surrogates by reading the
-    # dimension that was just published.
-    published = [o for o in ordered_objects(session) if o.gold_role]
-    for obj in sorted(published, key=lambda o: o.gold_role != GoldRole.DIMENSION):
-        try:
-            result_gold = build_gold(session, gold_run, obj, lake_root)
-        except Exception as exc:
-            failures += 1
-            print(f"  FAIL {obj.object_name:<14} {type(exc).__name__}: {exc}")
-        else:
-            print(
-                f"  ok   {obj.object_name:<14} {result_gold.rows_written:>8,} rows"
-                f"  ({result_gold.role})"
-            )
+    with track_run(session, "gold") as gold_run:
+        print(f"gold    run {gold_run.run_id}")
+        # Dimensions before facts: a fact resolves surrogates by reading the
+        # dimension that was just published.
+        published = [o for o in ordered_objects(session) if o.gold_role]
+        for obj in sorted(published, key=lambda o: o.gold_role != GoldRole.DIMENSION):
+            try:
+                result_gold = build_gold(session, gold_run, obj, lake_root)
+            except Exception as exc:
+                failures += 1
+                print(f"  FAIL {obj.object_name:<14} {type(exc).__name__}: {exc}")
+            else:
+                print(
+                    f"  ok   {obj.object_name:<14} {result_gold.rows_written:>8,} rows"
+                    f"  ({result_gold.role})"
+                )
     return failures
 
 

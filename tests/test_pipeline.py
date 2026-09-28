@@ -167,3 +167,31 @@ def test_the_cli_runs_end_to_end(
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'cp.db'}")
     main(["--register"])
     assert main(["--data-dir", str(seeded), "--lake-root", str(tmp_path / "lake")]) == 0
+
+
+def test_every_run_is_closed_when_the_pipeline_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Before step 38 the Silver and Gold runs were opened and never closed.
+
+    Every invocation left two rows 'running' forever, indistinguishable
+    from a crashed process. The ops dashboard caught it on first render.
+    """
+    from sqlalchemy import select
+
+    from lakehouse.metadata.enums import RunStatus
+    from lakehouse.metadata.models import PipelineRun
+
+    url = f"sqlite:///{tmp_path / 'control.db'}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    data, lake = tmp_path / "data", tmp_path / "lake"
+    write(generate(SeedConfig(rows=500)), data)
+
+    assert main(["--register", "--data-dir", str(data), "--lake-root", str(lake)]) == 0
+    assert main(["--data-dir", str(data), "--lake-root", str(lake)]) == 0
+
+    with Session(create_engine(url)) as s:
+        runs = list(s.scalars(select(PipelineRun)))
+    assert {r.pipeline_name for r in runs} >= {"silver", "gold"}
+    assert [r.pipeline_name for r in runs if r.status == RunStatus.RUNNING] == []
+    assert all(r.ended_at is not None for r in runs)

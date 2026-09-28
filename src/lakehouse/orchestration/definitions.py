@@ -45,9 +45,10 @@ from dagster import (
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from lakehouse.audit import track_run
 from lakehouse.config import Settings
 from lakehouse.credentials import database_url
-from lakehouse.ingest.bronze import ParquetSource, start_pipeline_run
+from lakehouse.ingest.bronze import ParquetSource
 from lakehouse.ingest.runner import run_pipeline
 from lakehouse.metadata.models import SourceObject
 from lakehouse.pipeline import CATALOG, CatalogEntry
@@ -151,8 +152,8 @@ def build_silver_asset(entry: CatalogEntry) -> AssetsDefinition:
         lakehouse: LakehouseResource = context.resources.lakehouse
         with lakehouse.session() as session:
             obj = _object(session, entry.name)
-            run = start_pipeline_run(session, SILVER_PREFIX, triggered_by="dagster")
-            result = build_silver(session, run, obj, lakehouse.lake_root)
+            with track_run(session, SILVER_PREFIX, triggered_by="dagster") as run:
+                result = build_silver(session, run, obj, lakehouse.lake_root)
             context.log.info("%s: %s rows written", entry.name, result.rows_written)
 
     return _silver
@@ -171,8 +172,8 @@ def build_gold_asset(entry: CatalogEntry) -> AssetsDefinition:
         lakehouse: LakehouseResource = context.resources.lakehouse
         with lakehouse.session() as session:
             obj = _object(session, entry.name)
-            run = start_pipeline_run(session, GOLD_PREFIX, triggered_by="dagster")
-            result = build_gold(session, run, obj, lakehouse.lake_root)
+            with track_run(session, GOLD_PREFIX, triggered_by="dagster") as run:
+                result = build_gold(session, run, obj, lakehouse.lake_root)
             context.log.info("%s: %s rows published", entry.name, result.rows_written)
 
     return _gold
