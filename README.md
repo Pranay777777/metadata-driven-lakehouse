@@ -146,7 +146,9 @@ shaped the project most — each with what it cost:
 
 **Arrow + delta-rs by default, Spark as an option** ([ADR-003](docs/adr/0003-arrow-delta-rs-engine.md), [ADR-014](docs/adr/0014-pluggable-engines.md)).
 The whole pipeline runs on a laptop in seconds and CI needs no cluster;
-Arrow was 16× faster than Spark at a million rows. *Cost:* single-node
+Arrow was 16× faster than Spark at a million rows on a 1 vCPU / 3 GB Linux
+container, and 8.7× (Linux container) and 4.0× (Windows laptop) at about two
+million rows in ADR-014 - the gap depends on the machine. *Cost:* single-node
 memory is the ceiling. The Spark engine behind the same interface is the
 answer past it, and a test requires the two to produce identical output.
 
@@ -185,7 +187,7 @@ machine; a laptop is faster. Medians of three runs.
 | Bronze throughput | 908k rows/s | same run, from the audit trail's own task durations |
 | Silver throughput (dedupe, DQ, SCD2) | 432k rows/s | ″ |
 | Gold throughput (star schema, surrogate keys) | 502k rows/s | ″ |
-| Arrow vs Spark engine, 1M rows | 670k vs 42k rows/s (**16×**) | [`benchmark_engines.py`](scripts/benchmark_engines.py), results compared for equality |
+| Arrow vs Spark engine, 1M rows, this 1 vCPU / 3 GB container | 670k vs 42k rows/s (**16×**) | [`benchmark_engines.py`](scripts/benchmark_engines.py), results compared for equality; at ~2M rows: 8.7× Linux container, 4.0× Windows laptop ([ADR-014](docs/adr/0014-pluggable-engines.md)) |
 | PII masking | 155k rows/s | 100k customers, 4 masked columns |
 | Storage, 1M rows | 47 MB raw → Bronze 47 · Silver 55 · Gold 54 MB | Delta on disk |
 | Onboarding a new source | 1 control-plane row + 1 file, **0 lines of code** | [a test](tests/test_pipeline.py) proves it |
