@@ -8,6 +8,9 @@
 ![Tested on](https://img.shields.io/badge/tested%20on-Ubuntu%20%7C%20Windows%20%7C%20Postgres-informational)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+**[Build log: a lakehouse you configure instead of code](docs/build-log.md)** - what
+breaks in real pipelines, what I measured and what I declined (5-minute read).
+
 ![Demo: seed, run all three layers, classify PII](docs/images/demo.gif)
 
 *Real output, recorded with [`scripts/record_demo.py`](scripts/record_demo.py): seed 81k rows, run Bronze → Silver → Gold, then let the scanner find and classify the personal data.*
