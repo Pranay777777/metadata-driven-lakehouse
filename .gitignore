@@ -76,3 +76,6 @@ data/generated/
 
 # Local Delta lake written by `make run` — generated, never committed
 lake/
+
+# graphify knowledge graph (local only)
+graphify-out/
